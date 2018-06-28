@@ -181,7 +181,9 @@ class productQueryParams:
                         'resolution:' : resolution}
 
 
-def submitQuery(parameters : productQueryParams):
+def submitQuery(parameters : productQueryParams,
+                esa_username : str,
+                esa_password : str):
 
     """
     Formats and submits a query to the ESA scihub via the requests module.
