@@ -14,9 +14,12 @@ TODO:
 George Worrall - University of Manchester 2018
 """
 
+import os
 import datetime
 import mgrs
 import requests
+import xml.etree.ElementTree as ET
+import warnings
 
 class productQueryParams:
 
@@ -44,6 +47,10 @@ class productQueryParams:
         if acqend and type(acqend) is not datetime.date:
             raise TypeError("You must pass a datetime.date object to this "
                             "method.")
+        if acqend and not (acqend >= acqstart):
+            raise ValueError("The end acquisition date must be after the "
+                             "beginning acquisition date.")
+
 
         self.dates = [acqstart, acqend]
 
@@ -186,7 +193,9 @@ def submitQuery(parameters : productQueryParams,
                 esa_password : str):
 
     """
-    Formats and submits a query to the ESA scihub via the requests module.
+    Formats and submits a query to the ESA scihub via the requests library.
+    Returns the number of results and a dict contain the results UUIDs and
+    information.
     """
 
     if not parameters.dates:
@@ -197,6 +206,131 @@ def submitQuery(parameters : productQueryParams,
                            " search parameters before submitting a query.")
 
     query = _buildQuery(parameters)
+
+    r = requests.get('https://scihub.copernicus.eu/dhus/search',
+                     params = query,
+                     auth = (esa_username, esa_password))
+
+    procfilter = False
+    # Filter S2 L1C products out if L2A over same area exists
+    if parameters.proclevel is 'BEST':
+        procfilter = True
+
+    totalresults, productlist = _handleResponse(r.content, procfilter)
+
+    return totalresults, productlist
+                     
+
+def downloadQuicklooks(productlist : dict,
+                       user : str,
+                       password : str,
+                       downloadpath : str = 'quicklooks/'):
+
+    """
+    Downloads the quicklooks of the retrieved products to a specified directory
+    for the user to inspect manually before downloading the full product list,
+    if they so wish.
+
+    Note: If no quicklook is available for a product, HTML status code 500 is
+        returned. In this case, the ESA placeholder 'No Quicklook' image is
+        downloaded.
+    """
+
+    if not os.path.exists(downloadpath):
+        os.makedirs(downloadpath)
+
+    for uuid, product in productlist.items():
+        url = product['quicklookdownload']
+        response = requests.get(url, auth = (user, password), stream = True)
+        filename = downloadpath + product['identifier']
+        if response.status_code == 500: # If no quicklook available
+            url = 'https://scihub.copernicus.eu/dhus/images/bigplaceholder.png'
+            response = requests.get(url, stream = True)
+        with open(filename, 'wb') as handle:
+            for chunk in response.iter_content(chunk_size=512):
+                if chunk:  # filter out keep-alive new chunks
+                    handle.write(chunk)
+
+
+
+
+def _handleResponse(responsestring : str, procfilter : bool):
+
+    """
+    Handles the query response using the xml library. Formats the xml data into
+    usable dict format and also filters for highest processing level of each
+    product if procfilter = True.
+    """
+
+    response = ET.fromstring(responsestring) # parse to XML
+
+
+    tr = response.find('{http://a9.com/-/spec/opensearch/1.1/}totalResults')
+    totalresults = tr.text # total products found from the search query
+
+    entries = response.findall('{http://www.w3.org/2005/Atom}entry')
+
+    # convert from XML to dictionary format
+    productlist = {}
+
+    for entry in entries:
+        product = {}
+        for field in entry:
+            if field.get('href') != None:
+                if field.get('href').endswith("('Quicklook')/$value"):
+                    product['quicklookdownload'] = field.get('href')
+                    continue
+                if field.get('href').endswith('$value'): # product dwnld links
+                    product['downloadlink'] = field.get('href')
+            if field.get('name') == 'uuid':
+                uuid = field.text
+                continue
+            if field.get('name') != 'None': # None fields contain redudancies
+                product[field.get('name')] = field.text
+        productlist[uuid] = product
+
+
+    # filter out S2 L1C products if equivalent L2A exists
+    def procFailWarning(id1, id2):
+        message = ("Failed to resolve a processling level"
+                   " filter beween products {0} and {1}. Both"
+                   " products have been retained in the"
+                   " search results.")
+        message = message.format(id1, id2)
+        warnings.warn(message)
+    if procfilter:
+        for uuid in list(productlist.keys()):
+            try: # handles case where a uuid has already been removed but its
+                product = productlist[uuid] # key is still present in the list
+            except:
+                continue
+            tile = product['identifier'][-22:-17] # find matching tile and times
+            sensingtime = product['beginposition']
+            otherproducts = productlist.copy()
+            otherproducts.pop(uuid, None)
+            for uuid2, product2 in otherproducts.items():
+                tile2 = product2['identifier'][-22:-17]
+                sensingtime2 = product2['beginposition']
+
+                if tile == tile2 and sensingtime == sensingtime2:
+                    if product['processinglevel'] == 'Level-1C':
+                        if product2['processinglevel'] == 'Level-2A':
+                            productlist.pop(uuid, None)
+                        else:
+                            procFailWarning(product['identifier'],
+                                            product2['identifier'])
+                    if product2['processinglevel'] == 'Level-1C':
+                        if product['processinglevel'] == 'Level-2A':
+                            productlist.pop(uuid2, None)
+                        else:
+                            procFailWarning(product['identifier'],
+                                            product2['identifier'])
+    
+    return totalresults, productlist
+
+
+
+
 
 
 def _buildQuery(parameters : productQueryParams) -> dict: 
@@ -254,6 +388,12 @@ def _buildQuery(parameters : productQueryParams) -> dict:
         if parameters.details[key]:
             term_join(key, parameters.details[key])
 
+    # If cloud cover limit is set for S2 products
+    if hasattr(parameters, 'cloudlimit'):
+        field = 'cloudcoverpercentage:'
+        value = '[0 TO {0}]'.format(parameters.cloudlimit)
+        term_join(field, value)
+
     # If searching for S1 products, can directly add required processing level
     # to query term in short hand (see User Guide)
 
@@ -261,22 +401,7 @@ def _buildQuery(parameters : productQueryParams) -> dict:
         if parameters.proclevel:
             term_join('', parameters.proclevel)
 
-    print(query)
-
-
-
-        
-
-
-
-    
-    
-    
-
-
-
-
-            
+    return query
 
 
         
@@ -285,11 +410,17 @@ def _buildQuery(parameters : productQueryParams) -> dict:
 
 if __name__ == "__main__":
 
-    # aiming for S2 test product
-    # S2A_MSIL2A_20170102T111442_N0204_R137_T30UXC_20170102T111441
-    # via BEST search which will kick back no L2A but one L1C
+    # get ESA login info
+    with open('user_info.txt', 'r') as f:
+        info = f.readline()
+        [user, password] = [x.strip() for x in info.split(':')]
+
+    # aiming for S2 test products
+    # S2A_MSIL2A_20180626T110621_N0208_R137_T30UXC_20180626T120032
+    # S2A_MSIL2A_20180626T110621_N0208_R137_T30UWC_20180626T120032
+    # via BEST search which will return two L2A filter out two L1C
     s2_testproduct = productQueryParams()
-    t = datetime.date(2017, 1, 2)
+    t = datetime.date(2018, 6, 26)
     s2_testproduct.acquisitionDateRange(t)
     test_coords = [
      [52.19345388039674,-1.457530077065015],
@@ -306,19 +437,21 @@ if __name__ == "__main__":
      [52.19345388039674,-1.457530077065015]]
     s2_testproduct.coordinates(test_coords)
     s2_testproduct.productDetails('S2', 'BEST', cloudcoverlimit=95)
-    print(s2_testproduct.satellite)
-    print(s2_testproduct.details)
+
     # Aiming for S1 test product
-    # S1B_IW_SLC__1SDV_20170103T062212_20170103T062239_003680_00650F_B009
+    # S1B_IW_SLC__1SDV_20180627T062201_20180627T062228_011555_0153D0_C80E
     s1_testproduct = productQueryParams()
     s1_testproduct.coordinates(test_coords)
-    t_end = datetime.date(2017, 1, 3)
+    t_end = datetime.date(2018, 6, 29)
     s1_testproduct.acquisitionDateRange(t, t_end)
-    s1_testproduct.productDetails('S1', 'L1', 'SLC', 'IW', 'VV VH') 
-    print(s1_testproduct.satellite)
-    print(s1_testproduct.details)
-    submitQuery(s2_testproduct)
-    submitQuery(s1_testproduct)
+    #s1_testproduct.productDetails('S1', 'L1', 'SLC', 'IW', 'VV VH') 
+    s1_testproduct.productDetails('S1', 'L2', 'OCN', 'IW')
+
+    # Submit queries to ESA scihub API
+    totals2, s2products = submitQuery(s2_testproduct, user, password)
+    totals1, s1products = submitQuery(s1_testproduct, user, password)
+    downloadQuicklooks(s2products, user, password)
+    downloadQuicklooks(s1products, user, password)
 
 
 
