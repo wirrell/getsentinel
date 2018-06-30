@@ -276,6 +276,10 @@ def _handleResponse(responsestring : str, procfilter : bool):
     for entry in entries:
         product = {}
         for field in entry:
+            if field.get('name') == 'identifier':
+                if field.text.startswith('S2'):
+                    tile = field.text[-22:-17]
+                    product['s2tile'] = tile
             if field.get('href') != None:
                 if field.get('href').endswith("('Quicklook')/$value"):
                     product['quicklookdownload'] = field.get('href')
