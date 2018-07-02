@@ -7,6 +7,9 @@ TODO:
     including sticthing of downloaded products (stitching may not be necessary
     is all Sentinel products have sufficient overlap).
     Implemented load in of ROI coordinates from geojson files.
+    Add forking for two product concurrent download.
+    Decide of whether the multi-tile shape file needs addressing at all in this
+    script of if there work can be delegated further down the pipeline.
 
 George Worrall - University of Manchester 2018
 """
