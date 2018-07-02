@@ -37,7 +37,8 @@ class productQueryParams:
     def acquisitionDateRange(self,
                              acqstart: datetime.date,
                              acqend=False):
-        """Sets the product search acquisition date range.
+        """
+        Sets the product search acquisition date range.
 
         Note: This is used to specify the Sensing Start Time search criteria.
               If no end date is specific, the 24 hour period for the given
@@ -102,7 +103,8 @@ class productQueryParams:
 
     def coordinates(self, coordlist: list):
 
-        """Converts the given co-ordinates lists to an MGRS 100km Grid Square
+        """
+        Converts the given co-ordinates lists to an MGRS 100km Grid Square
         ID. If the co-ordinates traverse square boundaries, all relevant IDs
         are saved. Co-ordinates are also stored for later retreived product
         area coverage checking.
@@ -154,7 +156,8 @@ class productQueryParams:
                        resolution=False,
                        cloudcoverlimit=False):
 
-        """Sets product search the satellite type.
+        """
+        Sets product search the satellite type.
         Current satellites supported: S1, S2.
         Current product type supported for S1: RAW, SLC, GRD, OCN
         Current S1 modes identifiers supported: SM, IW, EW, WV
@@ -545,8 +548,10 @@ if __name__ == "__main__":
     s2_testproduct.coordinates(test_coords)
     s2_testproduct.productDetails('S2', 'BEST', cloudcoverlimit=95)
 
-    # Aiming for S1 test product
-    # S1B_IW_SLC__1SDV_20180627T062201_20180627T062228_011555_0153D0_C80E
+    # Aiming for S1 test products
+    # S1A_IW_SLC__1SDV_20180626T174135_20180626T174158_022531_0270C9_EB74
+    # S1A_IW_SLC__1SDV_20180628T061437_20180628T061504_022553_027169_519F
+    # S1B_IW_SLC__1SDV_20180629T060538_20180629T060605_011584_0154B5_A00D
     s1_testproduct = productQueryParams()
     s1_testproduct.coordsFromFile('test_files/CB7_4SS_grid_1 _combi.shp',
                                   '.shp',
