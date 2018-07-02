@@ -3,13 +3,10 @@ Script to locate and auto-download products from Copernicus Open Access Hub
 which contains ESA Sentinel Satellite products. https://scihub.copernicus.eu/
 
 TODO:
-    Implement Sentinel-2 auto download for single products
-    Implement Sentinel-1 auto download for single products
-    Implement multiple time-frame download of prodcuts for a given area
     Write handling for co-ordinates lists that traverse mulitple MGRS squares
     including sticthing of downloaded products (stitching may not be necessary
     is all Sentinel products have sufficient overlap).
-    Implement loading in of co-ordinates directly from parsed shape files.
+    Implemented load in of ROI coordinates from geojson files.
 
 George Worrall - University of Manchester 2018
 """
@@ -22,6 +19,10 @@ import hashlib
 import mgrs
 import requests
 from clint.textui import progress
+from convertbng.util import convert_lonlat
+import shapefile
+from shapely.geometry import MultiPoint
+
 
 class productQueryParams:
 
@@ -31,11 +32,9 @@ class productQueryParams:
         self.coords = False
 
     def acquisitionDateRange(self,
-                        acqstart : datetime.date,
-                        acqend = False):
-
-        """ 
-        Sets the product search acquisition date range.
+                             acqstart: datetime.date,
+                             acqend=False):
+        """Sets the product search acquisition date range.
 
         Note: This is used to specify the Sensing Start Time search criteria.
               If no end date is specific, the 24 hour period for the given
@@ -53,27 +52,64 @@ class productQueryParams:
             raise ValueError("The end acquisition date must be after the "
                              "beginning acquisition date.")
 
-
         self.dates = [acqstart, acqend]
 
-
-
-    def coordinates(self, coordlist : list):
+    def coordsFromFile(self,
+                       filepath: str,
+                       filetype: str,
+                       coordsystem: str = 'WGS'):
 
         """
-        Converts the given co-ordinates lists to an MGRS 100km Grid Square
+        Loads in the coordinates of a Region Of Interest (ROI) from a shape
+        file or geojson file. Uses shapely module to get a polygon which
+        encompasses all of the shapes containined within the shape file.
+        Suports WGS87 and BNG coordinate formats.
+        """
+
+        # TODO: Implement reading in of coords from geojson files.
+
+        if filetype != '.shp':
+            raise NotImplementedError('Currently only .shp files are'
+                                      'supported.')
+
+        if coordsystem not in ['WGS', 'BNG']:
+            raise NotImplementedError('Currently only supports WGS and BNG'
+                                      'format.')
+
+        lon_coords = []
+        lat_coords = []
+        shp = shapefile.Reader(filepath)
+        for shape in shp.shapes():  # extract all points from all shapes
+            for point in shape.points:  # in the file
+                lon_coords.append(point[0])
+                lat_coords.append(point[1])
+        if coordsystem == 'BNG':  # convert to WGS
+            wgs_list = convert_lonlat(lon_coords, lat_coords)
+            lon_coords = wgs_list[0]
+            lat_coords = wgs_list[1]
+
+        coords = list(zip(lat_coords, lon_coords))
+
+        m = MultiPoint(coords)  # imported from shapely module
+        extents = m.convex_hull  # gets small polygon that encomps all points
+
+        coords = list(extents.exterior.coords)
+
+        self.coordinates(coords)
+
+    def coordinates(self, coordlist: list):
+
+        """Converts the given co-ordinates lists to an MGRS 100km Grid Square
         ID. If the co-ordinates traverse square boundaries, all relevant IDs
         are saved. Co-ordinates are also stored for later retreived product
         area coverage checking.
-        
+
         coordlist must be in the format [[lat, lon], [lat, lon], ... ]
         First and last co-ordinates given in coordlist must be the same to
         complete the described area.
         """
 
-        #TODO: Implement loading in of co-ordinates from shape file
-
-        if type(coordlist) is not list or type(coordlist[0]) is not list:
+        if type(coordlist) is not list or len(coordlist[0]) is not 2:
             raise TypeError("You must follow the coordlist format "
                             "requirements.")
 
@@ -84,23 +120,22 @@ class productQueryParams:
                                       'describing your area of interest.')
 
         if (coordlist[0][0] != coordlist[-1][0] or coordlist[0][1] !=
-            coordlist[-1][1]):
+            coordlist[-1][1]): # noqa
             raise ValueError("The first and last co-ordinates given "
                              "must be the same.")
 
         tile_list = []
-        m = mgrs.MGRS() # converts latitude and longitude to MGRS co-ords
+        m = mgrs.MGRS()  # converts latitude and longitude to MGRS co-ords
 
-        
         for (lat, lon) in coordlist:
-            m_coord = m.toMGRS(lat, lon, MGRSPrecision=1) # 7 digit output
-            tile = m_coord[:-2].decode("utf-8") # sliced to 5 digit tile no.
+            m_coord = m.toMGRS(lat, lon, MGRSPrecision=1)  # 7 digit output
+            tile = m_coord[:-2].decode("utf-8")  # sliced to 5 digit tile no.
             tile_list.append(tile)
 
         self.tiles = list(set(tile_list))
         self.coords = coordlist
 
-        #TODO: Implement multi-tile support including stitching of downloaded
+        # TODO: Implement multi-tile support including stitching of downloaded
         # products (stiching may not be necessary if all products have
         # sufficient overlap).
         if len(self.tiles) is not 1:
@@ -108,16 +143,15 @@ class productQueryParams:
                                       " than one MGRS tile. Multi MGRS tile"
                                       " support has not yet been implemented.")
 
-    def productDetails(self, sat : str,
-                       proclevel = False,
-                       producttype = False,
-                       mode = False,
-                       polarisation = False,
-                       resolution = False,
-                       cloudcoverlimit = False):
+    def productDetails(self, sat: str,
+                       proclevel=False,
+                       producttype=False,
+                       mode=False,
+                       polarisation=False,
+                       resolution=False,
+                       cloudcoverlimit=False):
 
-        """
-        Sets product search the satellite type.
+        """Sets product search the satellite type.
         Current satellites supported: S1, S2.
         Current product type supported for S1: RAW, SLC, GRD, OCN
         Current S1 modes identifiers supported: SM, IW, EW, WV
@@ -179,15 +213,14 @@ class productQueryParams:
                 print(self.productDetails.__doc__)
                 raise ValueError('Cloud cover limit is only for S2 products.')
 
-
-
         self.satellite = sat
         self.proclevel = proclevel
         # detail keys preformatted to their respective User Guide search terms
-        self.details = {'producttype:' :producttype,
-                        'sensoroperationalmode:' : mode,
-                        'polarisationmode:' : polarisation,
-                        'resolution:' : resolution}
+        self.details = {'producttype:': producttype,
+                        'sensoroperationalmode:': mode,
+                        'polarisationmode:': polarisation,
+                        'resolution:': resolution}
+
 
 class CopernicusHubConnection:
 
@@ -201,7 +234,7 @@ class CopernicusHubConnection:
         self.username = esa_username
         self.password = esa_password
 
-    def submitQuery(self, parameters : productQueryParams):
+    def submitQuery(self, parameters: productQueryParams):
 
         """
         Formats and submits a query to the ESA scihub via the requests library.
@@ -219,8 +252,8 @@ class CopernicusHubConnection:
         query = self._buildQuery(parameters)
 
         r = requests.get('https://scihub.copernicus.eu/dhus/search',
-                         params = query,
-                         auth = (self.username, self.password))
+                         params=query,
+                         auth=(self.username, self.password))
 
         procfilter = False
         # Filter S2 L1C products out if L2A over same area exists
@@ -230,20 +263,19 @@ class CopernicusHubConnection:
         totalresults, productlist = self._handleResponse(r.content, procfilter)
 
         return totalresults, productlist
-                         
 
     def downloadQuicklooks(self,
-                           productlist : dict,
-                           downloadpath : str = 'quicklooks/'):
+                           productlist: dict,
+                           downloadpath: str = 'quicklooks/'):
 
         """
-        Downloads the quicklooks of the retrieved products to a specified directory
-        for the user to inspect manually before downloading the full product list,
-        if they so wish.
+        Downloads the quicklooks of the retrieved products to a specified
+        directory for the user to inspect manually before downloading the
+        full product list, if they so wish.
 
-        Note: If no quicklook is available for a product, HTML status code 500 is
-            returned. In this case, the ESA placeholder 'No Quicklook' image is
-            downloaded.
+        Note: If no quicklook is available for a product, HTML status code
+        500 is returned. In this case, the ESA placeholder 'No Quicklook'
+        image is downloaded.
         """
 
         if not os.path.exists(downloadpath):
@@ -252,22 +284,23 @@ class CopernicusHubConnection:
         for uuid, product in productlist.items():
             url = product['quicklookdownload']
             response = requests.get(url,
-                                    auth = (self.username, self.password),
-                                    stream = True)
+                                    auth=(self.username, self.password),
+                                    stream=True)
             filename = downloadpath + product['identifier']
-            if response.status_code == 500: # If no quicklook available
-                url = 'https://scihub.copernicus.eu/dhus/images/bigplaceholder.png'
-                response = requests.get(url, stream = True)
+            if response.status_code == 500:  # If no quicklook available
+                url = ('https://scihub.copernicus.eu/dhus/images/'
+                       'bigplaceholder.png')
+                response = requests.get(url, stream=True)
             with open(filename, 'wb') as handle:
                 for chunk in response.iter_content(chunk_size=512):
                     if chunk:  # filter out keep-alive new chunks
                         handle.write(chunk)
 
     def downloadProducts(self,
-                         productlist : dict,
-                         downloadpath : str = 'products/',
-                         verify : bool = False):
-            
+                         productlist: dict,
+                         downloadpath: str = 'products/',
+                         verify: bool = False):
+
         """
         Downloads the products provided in the product list and verifies all
         downloads using MD5 checksum if verify = True.
@@ -278,14 +311,13 @@ class CopernicusHubConnection:
 
         for uuid, product in productlist.items():
             self.downloadSingleProduct(uuid, downloadpath, verify)
-                
 
     def downloadSingleProduct(self,
-                              uuid : str,
-                              downloadpath : str = 'products/',
-                              verify : bool = False):
+                              uuid: str,
+                              downloadpath: str = 'products/',
+                              verify: bool = False):
 
-        """ 
+        """
         Downloads a single product from its uuid and verifies the download
         using MD5 checksum if verify = True.
         """
@@ -293,8 +325,8 @@ class CopernicusHubConnection:
         downloadurl = ("https://scihub.copernicus.eu/dhus/odata/v1/"
                        "Products('{0}')/$value").format(uuid)
         response = requests.get(downloadurl,
-                                auth = (self.username, self.password),
-                                stream = True)
+                                auth=(self.username, self.password),
+                                stream=True)
         filename = response.headers.get('content-disposition')
         filename = filename.split('"')[1]
         filepath = downloadpath + uuid
@@ -307,45 +339,38 @@ class CopernicusHubConnection:
                   '{1}'.format(filename,
                                uuid))
             for chunk in progress.bar(response.iter_content(chunk_size=1024),
-                                      expected_size = (filelength/1024) + 1):
+                                      expected_size=(filelength/1024) + 1):
                 if chunk:  # filter out keep-alive new chunks
                     handle.write(chunk)
 
         # check the download was successful using MD5 Checksum
         if verify:
             checksumurl = ("https://scihub.copernicus.eu/dhus/odata/v1/"
-                        "Products('{0}')/Checksum/Value/$value").format(uuid)
+                           "Products('{0}')/Checksum/Value/$value"
+                           ).format(uuid)
             response = requests.get(checksumurl,
-                                    auth = (self.username, self.password))
+                                    auth=(self.username, self.password))
             # ESA supplied MD5 checksum for file
-            checksum = response.content.decode('utf8').lower() 
+            checksum = response.content.decode('utf8').lower()
             md5hash = hashlib.md5()
-            with open (filepath, "rb") as f:
+            with open(filepath, "rb") as f:
                 for chunk in iter(lambda: f.read(4096), b""):
                     md5hash.update(chunk)
             filesum = md5hash.hexdigest()
             if checksum != filesum:
                 raise ChecksumError(('The following product download failed'
-                                    ' verification: \n {0} \n UUID : {1}'
-                                    '').format(filename, uuid))
+                                     ' verification: \n {0} \n UUID : {1}'
+                                     '').format(filename, uuid))
 
-            
-            
-        
-
-    def _handleResponse(self, responsestring : str, procfilter : bool):
+    def _handleResponse(self, responsestring: str, procfilter: bool):
 
         """
-        Handles the query response using the xml library. Formats the xml data into
-        usable dict format and also filters for highest processing level of each
-        product if procfilter = True.
+        Handles the query response using the xml library. Formats the xml data
+        into usable dict format and also filters for highest processing level
+        of each product if procfilter = True.
         """
 
-        response = ET.fromstring(responsestring) # parse to XML
-
-
-        tr = response.find('{http://a9.com/-/spec/opensearch/1.1/}totalResults')
-        totalresults = tr.text # total products found from the search query
+        response = ET.fromstring(responsestring)  # parse to XML
 
         entries = response.findall('{http://www.w3.org/2005/Atom}entry')
 
@@ -359,19 +384,18 @@ class CopernicusHubConnection:
                     if field.text.startswith('S2'):
                         tile = field.text[-22:-17]
                         product['s2tile'] = tile
-                if field.get('href') != None:
+                if field.get('href') is not None:
                     if field.get('href').endswith("('Quicklook')/$value"):
                         product['quicklookdownload'] = field.get('href')
                         continue
-                    if field.get('href').endswith('$value'): # product dwnld links
+                    if field.get('href').endswith('$value'):  # download links
                         product['downloadlink'] = field.get('href')
                 if field.get('name') == 'uuid':
                     uuid = field.text
                     continue
-                if field.get('name') != 'None': # None fields contain redudancies
+                if field.get('name') != 'None':  # contain redudancies
                     product[field.get('name')] = field.text
             productlist[uuid] = product
-
 
         # filter out S2 L1C products if equivalent L2A exists
         def procFailWarning(id1, id2):
@@ -383,11 +407,12 @@ class CopernicusHubConnection:
             warnings.warn(message)
         if procfilter:
             for uuid in list(productlist.keys()):
-                try: # handles case where a uuid has already been removed but its
-                    product = productlist[uuid] # key is still present in the list
+                try:  # handles case where a uuid has already been removed but
+                    product = productlist[uuid]  # key is still present
                 except KeyError:
                     continue
-                tile = product['identifier'][-22:-17] # find matching tile and times
+                # find matching tile and times
+                tile = product['identifier'][-22:-17]
                 sensingtime = product['beginposition']
                 otherproducts = productlist.copy()
                 otherproducts.pop(uuid, None)
@@ -408,16 +433,11 @@ class CopernicusHubConnection:
                             else:
                                 procFailWarning(product['identifier'],
                                                 product2['identifier'])
-            totalresults = len(productlist)
-        
+        totalresults = len(productlist)
+
         return totalresults, productlist
 
-
-
-
-
-
-    def _buildQuery(self, parameters : productQueryParams): 
+    def _buildQuery(self, parameters: productQueryParams):
 
         """
         Builds the query for use with the requests module.
@@ -445,11 +465,11 @@ class CopernicusHubConnection:
         start_date = str(parameters.dates[0])+'T00:00:00.000Z'
         # set the end date to one day later
         end_date = (str(parameters.dates[0] + datetime.timedelta(days=1))
-                        +'T00:00:00.000Z')
+                    + 'T00:00:00.000Z')
         # if an end date set by the user, overwrite
         if parameters.dates[1]:
             end_date = (str(parameters.dates[1] + datetime.timedelta(days=1))
-                            +'T00:00:00.000Z')
+                        + 'T00:00:00.000Z')
 
         field = 'beginposition:'
         value = '[' + start_date + ' TO ' + end_date + ']'
@@ -478,7 +498,7 @@ class CopernicusHubConnection:
             value = '[0 TO {0}]'.format(parameters.cloudlimit)
             term_join(field, value)
 
-        # If searching for S1 products, can directly add required processing level
+        # If searching for S1 products, can directly add required proc level
         # to query term in short hand (see User Guide)
 
         if parameters.satellite is 'S1':
@@ -490,8 +510,6 @@ class CopernicusHubConnection:
 
 class ChecksumError(Exception):
     pass
-            
-
 
 
 if __name__ == "__main__":
@@ -509,39 +527,36 @@ if __name__ == "__main__":
     t = datetime.date(2018, 6, 26)
     s2_testproduct.acquisitionDateRange(t)
     test_coords = [
-     [52.19345388039674,-1.457530077065015],
-     [52.19090717497048,-1.459996965719496],
-     [52.18543304302305,-1.466515166082085],
-     [52.18127295502671,-1.463587991194426],
-     [52.17663695482379,-1.458228587403975],
-     [52.17444814271325,-1.455491238873678],
-     [52.17396223669407,-1.452644611915905],
-     [52.17417824001138,-1.444929550955296],
-     [52.19077295431794,-1.448993345097861],
-     [52.19282940614654,-1.450033434119889],
-     [52.19499959454429,-1.454319601915816],
-     [52.19345388039674,-1.457530077065015]]
+     [52.19345388039674, -1.457530077065015],
+     [52.19090717497048, -1.459996965719496],
+     [52.18543304302305, -1.466515166082085],
+     [52.18127295502671, -1.463587991194426],
+     [52.17663695482379, -1.458228587403975],
+     [52.17444814271325, -1.455491238873678],
+     [52.17396223669407, -1.452644611915905],
+     [52.17417824001138, -1.444929550955296],
+     [52.19077295431794, -1.448993345097861],
+     [52.19282940614654, -1.450033434119889],
+     [52.19499959454429, -1.454319601915816],
+     [52.19345388039674, -1.457530077065015]]
     s2_testproduct.coordinates(test_coords)
     s2_testproduct.productDetails('S2', 'BEST', cloudcoverlimit=95)
 
     # Aiming for S1 test product
     # S1B_IW_SLC__1SDV_20180627T062201_20180627T062228_011555_0153D0_C80E
     s1_testproduct = productQueryParams()
-    s1_testproduct.coordinates(test_coords)
+    s1_testproduct.coordsFromFile('test_files/CB7_4SS_grid_1 _combi.shp',
+                                  '.shp',
+                                  'BNG')
+
     t_end = datetime.date(2018, 6, 29)
     s1_testproduct.acquisitionDateRange(t, t_end)
-    #s1_testproduct.productDetails('S1', 'L1', 'SLC', 'IW', 'VV VH') 
-    s1_testproduct.productDetails('S1', 'L2', 'OCN', 'IW')
+    s1_testproduct.productDetails('S1', 'L1', 'SLC', 'IW', 'VV VH')
     hub = CopernicusHubConnection(user, password)
-
 
     # Submit queries to ESA scihub API
     totals2, s2products = hub.submitQuery(s2_testproduct)
     totals1, s1products = hub.submitQuery(s1_testproduct)
     hub.downloadQuicklooks(s2products)
     hub.downloadQuicklooks(s1products)
-    hub.downloadProducts(s2products, verify = True)
-
-
-
-
+    hub.downloadProducts(s2products, verify=True)

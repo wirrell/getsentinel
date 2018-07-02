@@ -7,4 +7,9 @@ Work in progress.
 Requirements: Python 3.6
               requests
               mgrs
+              clint
+              shapely
+              pyshp
+              convertbng
+
 
