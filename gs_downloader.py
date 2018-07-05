@@ -29,7 +29,7 @@ from clint.textui import progress
 from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint
-import localmanager
+import gs_localmanager
 
 
 class productQueryParams:
@@ -574,7 +574,7 @@ if __name__ == "__main__":
      [52.19499959454429, -1.454319601915816],
      [52.19345388039674, -1.457530077065015]]
     s2_testproduct.coordinates(test_coords)
-    s2_testproduct.productDetails('S2', 'ALL')
+    s2_testproduct.productDetails('S2', 'L1C')
 
     # Aiming for S1 test products
     # S1A_IW_SLC__1SDV_20180628T061437_20180628T061504_022553_027169_519F
