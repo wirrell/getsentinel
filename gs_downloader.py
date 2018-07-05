@@ -10,7 +10,9 @@ TODO:
     Add forking for two product concurrent download.
     Decide of whether the multi-tile shape file needs addressing at all in this
     script of if there work can be delegated further down the pipeline.
-    Remove MGRS module
+    Remove MGRS module and replace with kml file
+    Implement better tile finder for s2 data products that is backwards
+    compatible with the old file name format.
 
 George Worrall - University of Manchester 2018
 """
@@ -30,6 +32,7 @@ from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint
 import gs_localmanager
+from gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
 
 class productQueryParams:
@@ -241,10 +244,27 @@ class CopernicusHubConnection:
     methods that interact directly with the ESA Copernicus SciHub.
     """
 
-    def __init__(self, esa_username, esa_password):
+    def __init__(self):
 
-        self.username = esa_username
-        self.password = esa_password
+        self.username = ESA_USERNAME
+        self.password = ESA_PASSWORD
+
+    def raw_query(self, query):
+
+        """
+        Handles submission of a raw formatted query. Used by the
+        gs_localmanager to look up the product details for products manually
+        added to the download directory.
+        """
+
+        url = 'https://scihub.copernicus.eu/dhus/search?q=' + query
+        r = requests.get(url, auth=(self.username, self.password))
+
+        total_results, product_list = self._handleResponse(r.content, False)
+
+        return total_results, product_list
+        
+
 
     def submitQuery(self, parameters: productQueryParams):
 
@@ -310,7 +330,7 @@ class CopernicusHubConnection:
 
     def downloadProducts(self,
                          productlist: dict,
-                         downloadpath: str = 'data/',
+                         downloadpath: str = DATA_PATH,
                          verify: bool = False):
 
         """
@@ -318,7 +338,7 @@ class CopernicusHubConnection:
         downloads using MD5 checksum if verify = True.
         """
 
-        product_inventory = localmanager.get_inventory(downloadpath)
+        product_inventory = gs_localmanager.get_inventory()
 
         total_products = len(productlist)
         i = 1
@@ -405,6 +425,8 @@ class CopernicusHubConnection:
             for field in entry:
                 if field.get('name') == 'identifier':
                     if field.text.startswith('S2'):
+                        # TODO: implement more robust version that is backwards
+                        # compatible
                         tile = field.text[-22:-17]
                         product['s2tile'] = tile
                 if field.get('href') is not None:
@@ -418,6 +440,8 @@ class CopernicusHubConnection:
                     continue
                 if field.get('name') != 'None':  # contain redudancies
                     product[field.get('name')] = field.text
+            # TODO: Implement 'utmzone' and 's2tile' for S1 products
+            # by using intersects polygon with kml file of S2 tiles
             product['userprocessed'] = False
             productlist[uuid] = product
 
@@ -545,12 +569,9 @@ class ChecksumError(Exception):
 if __name__ == "__main__":
 
     # get ESA login info
-    with open('user_info.txt', 'r') as f:
-        info = f.readline()
-        [user, password] = [x.strip() for x in info.split(':')]
 
-    download_path = 'data/'
-    quicklooks_path = 'quicklooks/'
+    download_path = DATA_PATH
+    quicklooks_path = QUICKLOOKS_PATH
 
     # aiming for all S2 test products in coords and time frame
     # S2A_MSIL2A_20180626T110621_N0208_R137_T30UXC_20180626T120032
@@ -594,5 +615,5 @@ if __name__ == "__main__":
     totals1, s1products = hub.submitQuery(s1_testproduct)
     hub.downloadQuicklooks(s2products, quicklooks_path)
     hub.downloadQuicklooks(s1products, quicklooks_path)
-    hub.downloadProducts(s2products, download_path, verify=True)
-    hub.downloadProcuts(s1products, download_path, verify=True)
+    #hub.downloadProducts(s2products, download_path, verify=True)
+    hub.downloadProducts(s1products, download_path, verify=True)
