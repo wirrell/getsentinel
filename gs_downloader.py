@@ -10,6 +10,7 @@ TODO:
     Add forking for two product concurrent download.
     Decide of whether the multi-tile shape file needs addressing at all in this
     script of if there work can be delegated further down the pipeline.
+    Remove MGRS module
 
 George Worrall - University of Manchester 2018
 """
@@ -19,12 +20,16 @@ import datetime
 import xml.etree.ElementTree as ET
 import warnings
 import hashlib
+import json
+import pathlib
+import zipfile
 import mgrs
 import requests
 from clint.textui import progress
 from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint
+import localmanager
 
 
 class productQueryParams:
@@ -163,8 +168,8 @@ class productQueryParams:
         Current S1 modes identifiers supported: SM, IW, EW, WV
         Current S1 resolutions supported: F, H, M
         Current S1 polarisations supported: HH, VV, HV, VH, HH HV, VV VH
-        Current S1 processing levels supported: L0, L1, L2
-        Current S2 processing levels supported: L1C, L2A, BEST
+        Current S1 processing levels supported: L0, L1, L2, ALL
+        Current S2 processing levels supported: L1C, L2A, BEST, ALL
         Cloud cover limit: integer threshold above which S2 products
         which higher than threshold cloud coverage will be excluded from the
         search.
@@ -190,16 +195,17 @@ class productQueryParams:
                 print(self.productDetails.__doc__)
                 raise ValueError(" Product type, mode, polarisation, "
                                  "resolution are only for S1 products.")
-            if proclevel not in ['L1C', 'L2A', 'BEST']:
+            if proclevel not in ['L1C', 'L2A', 'BEST', 'ALL']:
                 print(self.productDetails.__doc__)
                 raise ValueError
-            if type(cloudcoverlimit) is not int:
-                print(self.productDetails.__doc__)
-                raise ValueError
-            self.cloudlimit = cloudcoverlimit
+            if cloudcoverlimit: 
+                self.cloudlimit = cloudcoverlimit
+                if type(cloudcoverlimit) is not int:
+                    print(self.productDetails.__doc__)
+                    raise ValueError
 
         if sat is 'S1':
-            if proclevel and proclevel not in ['L0', 'L1', 'L2']:
+            if proclevel and proclevel not in ['L0', 'L1', 'L2', 'ALL']:
                 print(self.productDetails.__doc__)
                 raise ValueError
             if producttype and producttype not in ['RAW', 'SLC', 'GRD', 'OCN']:
@@ -304,7 +310,7 @@ class CopernicusHubConnection:
 
     def downloadProducts(self,
                          productlist: dict,
-                         downloadpath: str = 'products/',
+                         downloadpath: str = 'data/',
                          verify: bool = False):
 
         """
@@ -312,15 +318,25 @@ class CopernicusHubConnection:
         downloads using MD5 checksum if verify = True.
         """
 
-        if not os.path.exists(downloadpath):
-            os.makedirs(downloadpath)
+        product_inventory = localmanager.get_inventory(downloadpath)
+
+        total_products = len(productlist)
+        i = 1
 
         for uuid, product in productlist.items():
-            self.downloadSingleProduct(uuid, downloadpath, verify)
+            print("Downloading product {0} / {1}.".format(i, total_products))
+            filename = self._downloadSingleProduct(uuid, downloadpath, verify)
+            zip_ref = zipfile.ZipFile(filename, 'r')
+            extract_to = downloadpath
+            zip_ref.extractall(extract_to)
+            zip_ref.close()
+            i = i + 1
 
-    def downloadSingleProduct(self,
+
+
+    def _downloadSingleProduct(self,
                               uuid: str,
-                              downloadpath: str = 'products/',
+                              downloadpath: str,
                               verify: bool = False):
 
         """
@@ -335,7 +351,7 @@ class CopernicusHubConnection:
                                 stream=True)
         filename = response.headers.get('content-disposition')
         filename = filename.split('"')[1]
-        filepath = downloadpath + uuid
+        filepath = downloadpath + filename
         if response.status_code == 500:
             raise FileNotFoundError('The product with UUID {0} could not be'
                                     'found.'.format(uuid))
@@ -367,6 +383,7 @@ class CopernicusHubConnection:
                 raise ChecksumError(('The following product download failed'
                                      ' verification: \n {0} \n UUID : {1}'
                                      '').format(filename, uuid))
+        return filepath
 
     def _handleResponse(self, responsestring: str, procfilter: bool):
 
@@ -401,6 +418,7 @@ class CopernicusHubConnection:
                     continue
                 if field.get('name') != 'None':  # contain redudancies
                     product[field.get('name')] = field.text
+            product['userprocessed'] = False
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
@@ -508,9 +526,15 @@ class CopernicusHubConnection:
         # to query term in short hand (see User Guide)
 
         if parameters.satellite is 'S1':
-            if parameters.proclevel:
+            if parameters.proclevel and parameters.proclevel != 'ALL':
                 term_join('', parameters.proclevel)
-
+        if parameters.satellite is 'S2':
+            field = 'producttype:'
+            if parameters.proclevel == 'L1C':
+                term_join(field, 'S2MSI1C')
+            if parameters.proclevel == 'L2A':
+                term_join(field, 'S2MSI2A OR S2MSI2Ap')
+                
         return query
 
 
@@ -525,10 +549,14 @@ if __name__ == "__main__":
         info = f.readline()
         [user, password] = [x.strip() for x in info.split(':')]
 
-    # aiming for S2 test products
+    download_path = 'data/'
+    quicklooks_path = 'quicklooks/'
+
+    # aiming for all S2 test products in coords and time frame
     # S2A_MSIL2A_20180626T110621_N0208_R137_T30UXC_20180626T120032
     # S2A_MSIL2A_20180626T110621_N0208_R137_T30UWC_20180626T120032
-    # via BEST search which will return two L2A filter out two L1C
+    # S2A_MSIL1C_20180626T110621_N0206_R137_T30UXC_20180626T120032
+    # S2A_MSIL1C_20180626T110621_N0206_R137_T30UWC_20180626T120032
     s2_testproduct = productQueryParams()
     t = datetime.date(2018, 6, 26)
     s2_testproduct.acquisitionDateRange(t)
@@ -546,25 +574,25 @@ if __name__ == "__main__":
      [52.19499959454429, -1.454319601915816],
      [52.19345388039674, -1.457530077065015]]
     s2_testproduct.coordinates(test_coords)
-    s2_testproduct.productDetails('S2', 'BEST', cloudcoverlimit=95)
+    s2_testproduct.productDetails('S2', 'ALL')
 
     # Aiming for S1 test products
-    # S1A_IW_SLC__1SDV_20180626T174135_20180626T174158_022531_0270C9_EB74
     # S1A_IW_SLC__1SDV_20180628T061437_20180628T061504_022553_027169_519F
-    # S1B_IW_SLC__1SDV_20180629T060538_20180629T060605_011584_0154B5_A00D
     s1_testproduct = productQueryParams()
     s1_testproduct.coordsFromFile('test_files/CB7_4SS_grid_1 _combi.shp',
                                   '.shp',
                                   'BNG')
 
-    t_end = datetime.date(2018, 6, 29)
+    t = datetime.date(2018, 6, 27)
+    t_end = datetime.date(2018, 6, 28)
     s1_testproduct.acquisitionDateRange(t, t_end)
-    s1_testproduct.productDetails('S1', 'L1', 'SLC', 'IW', 'VV VH')
+    s1_testproduct.productDetails('S1', 'L1', 'GRD', 'IW', 'VV VH')
     hub = CopernicusHubConnection(user, password)
 
     # Submit queries to ESA scihub API
     totals2, s2products = hub.submitQuery(s2_testproduct)
     totals1, s1products = hub.submitQuery(s1_testproduct)
-    hub.downloadQuicklooks(s2products)
-    hub.downloadQuicklooks(s1products)
-    hub.downloadProducts(s2products, verify=True)
+    hub.downloadQuicklooks(s2products, quicklooks_path)
+    hub.downloadQuicklooks(s1products, quicklooks_path)
+    hub.downloadProducts(s2products, download_path, verify=True)
+    hub.downloadProcuts(s1products, download_path, verify=True)

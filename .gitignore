@@ -1,5 +1,5 @@
 *.pyc
 user_info.txt
 .swp
-/products/
+/data/
 /quicklooks/
