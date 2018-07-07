@@ -17,12 +17,10 @@ TODO:
 George Worrall - University of Manchester 2018
 """
 
-import os
 import datetime
 import xml.etree.ElementTree as ET
 import warnings
 import hashlib
-import json
 import pathlib
 import zipfile
 import mgrs
@@ -35,16 +33,16 @@ import gs_localmanager
 from gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
 
-class productQueryParams:
+class ProductQueryParams:
 
     def __init__(self):
 
         self.dates = False
         self.coords = False
 
-    def acquisitionDateRange(self,
-                             acqstart: datetime.date,
-                             acqend=False):
+    def acquisition_date_range(self,
+                               acqstart: datetime.date,
+                               acqend=False):
         """
         Sets the product search acquisition date range.
 
@@ -66,10 +64,10 @@ class productQueryParams:
 
         self.dates = [acqstart, acqend]
 
-    def coordsFromFile(self,
-                       filepath: str,
-                       filetype: str,
-                       coordsystem: str = 'WGS'):
+    def coords_from_file(self,
+                         filepath: str,
+                         filetype: str,
+                         coordsystem: str = 'WGS'):
 
         """
         Loads in the coordinates of a Region Of Interest (ROI) from a shape
@@ -156,13 +154,13 @@ class productQueryParams:
                                       " than one MGRS tile. Multi MGRS tile"
                                       " support has not yet been implemented.")
 
-    def productDetails(self, sat: str,
-                       proclevel=False,
-                       producttype=False,
-                       mode=False,
-                       polarisation=False,
-                       resolution=False,
-                       cloudcoverlimit=False):
+    def product_details(self, sat: str,
+                        proclevel=False,
+                        producttype=False,
+                        mode=False,
+                        polarisation=False,
+                        resolution=False,
+                        cloudcoverlimit=False):
 
         """
         Sets product search the satellite type.
@@ -195,37 +193,37 @@ class productQueryParams:
 
         if sat is 'S2':
             if producttype or mode or resolution or polarisation:
-                print(self.productDetails.__doc__)
+                print(self.product_details.__doc__)
                 raise ValueError(" Product type, mode, polarisation, "
                                  "resolution are only for S1 products.")
             if proclevel not in ['L1C', 'L2A', 'BEST', 'ALL']:
-                print(self.productDetails.__doc__)
+                print(self.product_details.__doc__)
                 raise ValueError
-            if cloudcoverlimit: 
+            if cloudcoverlimit:
                 self.cloudlimit = cloudcoverlimit
                 if type(cloudcoverlimit) is not int:
-                    print(self.productDetails.__doc__)
+                    print(self.product_details.__doc__)
                     raise ValueError
 
         if sat is 'S1':
             if proclevel and proclevel not in ['L0', 'L1', 'L2', 'ALL']:
-                print(self.productDetails.__doc__)
+                print(self.product_details.__doc__)
                 raise ValueError
             if producttype and producttype not in ['RAW', 'SLC', 'GRD', 'OCN']:
-                print(self.productDetails.__doc__)
+                print(self.product_details.__doc__)
                 raise ValueError
             if mode and mode not in ['SM', 'IW', 'EW', 'WV']:
-                print(self.productDetails.__doc__)
+                print(self.product_details.__doc__)
                 raise ValueError
             if polarisation and polarisation not in ['HH', 'VV', 'HV', 'VH',
                                                      'HH HV', 'VV VH']:
-                print(self.productDetails.__doc__)
+                print(self.product_details.__doc__)
                 raise ValueError
             if resolution and resolution not in ['F', 'H', 'M']:
-                print(self.productDetails.__doc__)
+                print(self.product_details.__doc__)
                 raise ValueError
             if cloudcoverlimit:
-                print(self.productDetails.__doc__)
+                print(self.product_details.__doc__)
                 raise ValueError('Cloud cover limit is only for S2 products.')
 
         self.satellite = sat
@@ -260,13 +258,11 @@ class CopernicusHubConnection:
         url = 'https://scihub.copernicus.eu/dhus/search?q=' + query
         r = requests.get(url, auth=(self.username, self.password))
 
-        total_results, product_list = self._handleResponse(r.content, False)
+        total_results, product_list = self._handle_response(r.content, False)
 
         return total_results, product_list
-        
 
-
-    def submitQuery(self, parameters: productQueryParams):
+    def submit_query(self, parameters: ProductQueryParams):
 
         """
         Formats and submits a query to the ESA scihub via the requests library.
@@ -281,7 +277,7 @@ class CopernicusHubConnection:
             raise RuntimeError(" Please set the co-ordinates of the product"
                                " search parameters before submitting a query.")
 
-        query = self._buildQuery(parameters)
+        query = self._build_query(parameters)
 
         r = requests.get('https://scihub.copernicus.eu/dhus/search',
                          params=query,
@@ -292,13 +288,14 @@ class CopernicusHubConnection:
         if parameters.proclevel is 'BEST':
             procfilter = True
 
-        totalresults, productlist = self._handleResponse(r.content, procfilter)
+        totalresults, productlist = self._handle_response(r.content,
+                                                          procfilter)
 
         return totalresults, productlist
 
-    def downloadQuicklooks(self,
-                           productlist: dict,
-                           downloadpath: str = 'quicklooks/'):
+    def download_quicklooks(self,
+                            productlist: dict,
+                            downloadpath: str = QUICKLOOKS_PATH):
 
         """
         Downloads the quicklooks of the retrieved products to a specified
@@ -310,10 +307,13 @@ class CopernicusHubConnection:
         image is downloaded.
         """
 
-        if not os.path.exists(downloadpath):
-            os.makedirs(downloadpath)
+        quicklooks_path = pathlib.Path(downloadpath)
+        quicklooks_path.mkdir(exist_ok=True)
+        existing_quicklooks = [x for x in list(quicklooks_path.glob('*'))]
 
         for uuid, product in productlist.items():
+            if product['identifier'] in existing_quicklooks:
+                pass  # skip if already downloaded
             url = product['quicklookdownload']
             response = requests.get(url,
                                     auth=(self.username, self.password),
@@ -328,36 +328,51 @@ class CopernicusHubConnection:
                     if chunk:  # filter out keep-alive new chunks
                         handle.write(chunk)
 
-    def downloadProducts(self,
-                         productlist: dict,
-                         downloadpath: str = DATA_PATH,
-                         verify: bool = False):
+    def download_products(self,
+                          productlist: dict,
+                          downloadpath: str = DATA_PATH,
+                          verify: bool = False):
 
         """
         Downloads the products provided in the product list and verifies all
         downloads using MD5 checksum if verify = True.
         """
 
-        product_inventory = gs_localmanager.get_inventory()
+        product_inventory = gs_localmanager.get_product_inventory()
+        already_downloaded = list(product_inventory.keys())
 
         total_products = len(productlist)
-        i = 1
+        i = 1  # used for product count
 
         for uuid, product in productlist.items():
+            if uuid in already_downloaded:  # skip files already downloaded
+                print("Product {0} with UUID {1} is already present in the"
+                      "download directory - skipping.".format(
+                          product['filename'],
+                          uuid))
+                continue
+
             print("Downloading product {0} / {1}.".format(i, total_products))
-            filename = self._downloadSingleProduct(uuid, downloadpath, verify)
+            filename = self._download_single_product(uuid,
+                                                     downloadpath,
+                                                     verify)
             zip_ref = zipfile.ZipFile(filename, 'r')
             extract_to = downloadpath
             zip_ref.extractall(extract_to)
             zip_ref.close()
+
             i = i + 1
 
+        data_path = pathlib.Path(DATA_PATH)
+        # collect all the leftover .zip files
+        zip_files = [x for x in list(data_path.glob('*.zip'))]
+        for zip_file in zip_files:
+            zip_file.unlink()
 
-
-    def _downloadSingleProduct(self,
-                              uuid: str,
-                              downloadpath: str,
-                              verify: bool = False):
+    def _download_single_product(self,
+                                 uuid: str,
+                                 downloadpath: str,
+                                 verify: bool = False):
 
         """
         Downloads a single product from its uuid and verifies the download
@@ -405,7 +420,7 @@ class CopernicusHubConnection:
                                      '').format(filename, uuid))
         return filepath
 
-    def _handleResponse(self, responsestring: str, procfilter: bool):
+    def _handle_response(self, responsestring: str, procfilter: bool):
 
         """
         Handles the query response using the xml library. Formats the xml data
@@ -446,7 +461,7 @@ class CopernicusHubConnection:
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
-        def procFailWarning(id1, id2):
+        def proc_fail_warning(id1, id2):
             message = ("Failed to resolve a processling level"
                        " filter beween products {0} and {1}. Both"
                        " products have been retained in the"
@@ -473,19 +488,19 @@ class CopernicusHubConnection:
                             if product2['processinglevel'] == 'Level-2A':
                                 productlist.pop(uuid, None)
                             else:
-                                procFailWarning(product['identifier'],
-                                                product2['identifier'])
+                                proc_fail_warning(product['identifier'],
+                                                  product2['identifier'])
                         if product2['processinglevel'] == 'Level-1C':
                             if product['processinglevel'] == 'Level-2A':
                                 productlist.pop(uuid2, None)
                             else:
-                                procFailWarning(product['identifier'],
-                                                product2['identifier'])
+                                proc_fail_warning(product['identifier'],
+                                                  product2['identifier'])
         totalresults = len(productlist)
 
         return totalresults, productlist
 
-    def _buildQuery(self, parameters: productQueryParams):
+    def _build_query(self, parameters: ProductQueryParams):
 
         """
         Builds the query for use with the requests module.
@@ -558,7 +573,7 @@ class CopernicusHubConnection:
                 term_join(field, 'S2MSI1C')
             if parameters.proclevel == 'L2A':
                 term_join(field, 'S2MSI2A OR S2MSI2Ap')
-                
+
         return query
 
 
@@ -578,9 +593,9 @@ if __name__ == "__main__":
     # S2A_MSIL2A_20180626T110621_N0208_R137_T30UWC_20180626T120032
     # S2A_MSIL1C_20180626T110621_N0206_R137_T30UXC_20180626T120032
     # S2A_MSIL1C_20180626T110621_N0206_R137_T30UWC_20180626T120032
-    s2_testproduct = productQueryParams()
+    s2_testproduct = ProductQueryParams()
     t = datetime.date(2018, 6, 26)
-    s2_testproduct.acquisitionDateRange(t)
+    s2_testproduct.acquisition_date_range(t)
     test_coords = [
      [52.19345388039674, -1.457530077065015],
      [52.19090717497048, -1.459996965719496],
@@ -595,25 +610,25 @@ if __name__ == "__main__":
      [52.19499959454429, -1.454319601915816],
      [52.19345388039674, -1.457530077065015]]
     s2_testproduct.coordinates(test_coords)
-    s2_testproduct.productDetails('S2', 'L1C')
+    s2_testproduct.product_details('S2', 'L1C')
 
     # Aiming for S1 test products
     # S1A_IW_SLC__1SDV_20180628T061437_20180628T061504_022553_027169_519F
-    s1_testproduct = productQueryParams()
-    s1_testproduct.coordsFromFile('test_files/CB7_4SS_grid_1 _combi.shp',
-                                  '.shp',
-                                  'BNG')
+    s1_testproduct = ProductQueryParams()
+    s1_testproduct.coords_from_file('test_files/CB7_4SS_grid_1 _combi.shp',
+                                    '.shp',
+                                    'BNG')
 
     t = datetime.date(2018, 6, 27)
     t_end = datetime.date(2018, 6, 28)
-    s1_testproduct.acquisitionDateRange(t, t_end)
-    s1_testproduct.productDetails('S1', 'L1', 'GRD', 'IW', 'VV VH')
-    hub = CopernicusHubConnection(user, password)
+    s1_testproduct.acquisition_date_range(t, t_end)
+    s1_testproduct.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
+    hub = CopernicusHubConnection()
 
     # Submit queries to ESA scihub API
-    totals2, s2products = hub.submitQuery(s2_testproduct)
-    totals1, s1products = hub.submitQuery(s1_testproduct)
-    hub.downloadQuicklooks(s2products, quicklooks_path)
-    hub.downloadQuicklooks(s1products, quicklooks_path)
-    #hub.downloadProducts(s2products, download_path, verify=True)
-    hub.downloadProducts(s1products, download_path, verify=True)
+    totals2, s2products = hub.submit_query(s2_testproduct)
+    totals1, s1products = hub.submit_query(s1_testproduct)
+    hub.download_quicklooks(s2products, quicklooks_path)
+    hub.download_quicklooks(s1products, quicklooks_path)
+    hub.download_products(s2products, download_path, verify=True)
+    hub.download_products(s1products, download_path, verify=True)
