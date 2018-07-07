@@ -2,17 +2,15 @@
 Downloaded product inventory manager.
 
     TODO:
-        Check support for manual addition of S1 files to the download directory.
+        Check support for manual addition of S1 files to download directory.
 """
 
-import inspect
 import json
 from pathlib import Path
-from functools import wraps
 import xml.etree.ElementTree as ET
-import requests
 from gs_config import DATA_PATH
 import gs_downloader
+
 
 def check_integrity():
 
@@ -66,7 +64,7 @@ def check_integrity():
             for child in root[0][0]:
                 available_tags.append(child.tag)
             for req_tag in required_tags:
-                if not req_tag in available_tags:
+                if req_tag not in available_tags:
                     raise RuntimeError("Manifest at location {0} does not"
                                        " conform to expected structure."
                                        "".format(file_info[0]))
@@ -95,9 +93,9 @@ def check_integrity():
             raise RuntimeError("Custom product file renaming is not"
                                " supported. Product names must start with"
                                " 'S1' or 'S2' and follow standard naming"
-                               " conventions. \n See" 
+                               " conventions. \n See"
                                " https://scihub.copernicus.eu/userguide/")
-        hub = gs_downloader.CopernicusHubConnection() 
+        hub = gs_downloader.CopernicusHubConnection()
         product_name = filename[:-5]
         if 'USER_PRD' in product_name:
             # files already user processed require special case handling
@@ -105,12 +103,12 @@ def check_integrity():
             for uuid in product:
                 new_products[uuid] = product[uuid]
             continue
-        
-        search_term = 'filename:*' + product_name +'*'
+
+        search_term = 'filename:*' + product_name + '*'
         total, product = hub.raw_query(search_term)
         if total is 0:  # assume it is a user processed file
             product = handle_user_prd(filename)
-        if total  > 1:
+        if total > 1:
             raise RuntimeError("Could not find a unique matching product"
                                "in the ESA database for filename: \n"
                                " {0} in the {1} directory."
@@ -122,11 +120,11 @@ def check_integrity():
 
     return True
 
-        
+
 def get_product_inventory():
 
     """Returns the product inventory as a dictionary of UUIDs."""
-                                   
+
     product_inventory_path = Path(DATA_PATH + '/product_inventory.json')
     product_inventory_path.touch(exist_ok=True)
     try:
@@ -137,8 +135,9 @@ def get_product_inventory():
 
     return product_inventory
 
+
 def _save_product_inventory(product_inventory):
-    
+
     """Writes the updated product inventory to the associated .json file."""
 
     product_inventory_path = Path(DATA_PATH + '/product_inventory.json')
@@ -147,7 +146,7 @@ def _save_product_inventory(product_inventory):
         json.dump(product_inventory, write_out)
 
 
-def add_new_products(new_products : dict):
+def add_new_products(new_products: dict):
 
     """Adds new products to the inventory."""
 
@@ -161,7 +160,7 @@ def add_new_products(new_products : dict):
 
     product_inventory = get_product_inventory()
     added_uuids = []
-    
+
     for uuid in new_products:
         if uuid in product_inventory:
             if product_inventory[uuid] == new_products[uuid]:
@@ -172,17 +171,13 @@ def add_new_products(new_products : dict):
             uuid = get_new_uuid(uuid)
         product_inventory[uuid] = new_products[uuid]
         added_uuids.append(uuid)
-    
+
     _save_product_inventory(product_inventory)
 
     return added_uuids
-
-
-
 
 
 if __name__ == '__main__':
     check_integrity()
     product_inventory = get_product_inventory()
     print(len(product_inventory))
-
