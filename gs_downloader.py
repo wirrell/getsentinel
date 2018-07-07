@@ -578,21 +578,21 @@ if __name__ == "__main__":
 
     # Aiming for S1 test products
     # S1A_IW_SLC__1SDV_20180628T061437_20180628T061504_022553_027169_519F
-    s1_testproduct = productQueryParams()
-    s1_testproduct.coordsFromFile('test_files/CB7_4SS_grid_1 _combi.shp',
-                                  '.shp',
-                                  'BNG')
+    #s1_testproduct = productQueryParams()
+    #s1_testproduct.coordsFromFile('test_files/CB7_4SS_grid_1 _combi.shp',
+#                                  '.shp',
+#                                  'BNG')
 
-    t = datetime.date(2018, 6, 27)
-    t_end = datetime.date(2018, 6, 28)
-    s1_testproduct.acquisitionDateRange(t, t_end)
-    s1_testproduct.productDetails('S1', 'L1', 'GRD', 'IW', 'VV VH')
-    hub = CopernicusHubConnection(user, password)
+    #t = datetime.date(2018, 6, 27)
+    #t_end = datetime.date(2018, 6, 28)
+    #s1_testproduct.acquisitionDateRange(t, t_end)
+    #s1_testproduct.productDetails('S1', 'L1', 'GRD', 'IW', 'VV VH')
+    #hub = CopernicusHubConnection(user, password)
 
     # Submit queries to ESA scihub API
-    totals2, s2products = hub.submitQuery(s2_testproduct)
-    totals1, s1products = hub.submitQuery(s1_testproduct)
-    hub.downloadQuicklooks(s2products, quicklooks_path)
-    hub.downloadQuicklooks(s1products, quicklooks_path)
-    hub.downloadProducts(s2products, download_path, verify=True)
-    hub.downloadProcuts(s1products, download_path, verify=True)
+#    totals2, s2products = hub.submitQuery(s2_testproduct)
+#    totals1, s1products = hub.submitQuery(s1_testproduct)
+#    hub.downloadQuicklooks(s2products, quicklooks_path)
+#    hub.downloadQuicklooks(s1products, quicklooks_path)
+#    hub.downloadProducts(s2products, download_path, verify=True)
+#    hub.downloadProcuts(s1products, download_path, verify=True)
