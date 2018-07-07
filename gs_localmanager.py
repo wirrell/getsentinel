@@ -27,7 +27,7 @@ def check_integrity():
     product_inventory_gone = product_inventory.copy()
 
     for uuid, product in product_inventory.items():
-        if product['filename'] in product_list:
+        if product['filename'] in product_list_add:
             product_inventory_gone.pop(uuid, None)
             product_list_add.remove(product['filename'])
 
@@ -131,10 +131,10 @@ def get_product_inventory():
     product_inventory_path.touch(exist_ok=True)
     try:
         with product_inventory_path.open() as read_in:
-            product_inventory = json.loads(read_in)
+            product_inventory = json.load(read_in)
     except (ValueError, TypeError):  # if the inventory is empty
         product_inventory = {}
-    
+
     return product_inventory
 
 def _save_product_inventory(product_inventory):
@@ -178,35 +178,11 @@ def add_new_products(new_products : dict):
     return added_uuids
 
 
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def get_inventory():
-
-    """Retrieves and reads in the product_inventory.json file. """
-
-    pass
-
-
 
 
 
 if __name__ == '__main__':
     check_integrity()
+    product_inventory = get_product_inventory()
+    print(len(product_inventory))
 
