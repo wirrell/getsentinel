@@ -18,7 +18,7 @@ def check_integrity():
 
     data_path = Path(DATA_PATH)
 
-    product_inventory = get_product_inventory()
+    product_inventory = _get_inventory()
 
     # get all file names from directory
     product_list_add = [x.name for x in list(data_path.glob('*.SAFE'))]
@@ -30,7 +30,7 @@ def check_integrity():
             product_list_add.remove(product['filename'])
 
     for uuid in product_inventory_gone:  # now holds inventory entries for
-        product_inventory.remove(uuid, None)  # product that no longer exist
+        product_inventory.pop(uuid, None)  # product that no longer exist
 
     def handle_user_prd(filename):
 
@@ -116,14 +116,18 @@ def check_integrity():
         for uuid in product:
             new_products[uuid] = product[uuid]
 
-    add_new_products(new_products)
+    for uuid in new_products:
+        product_inventory[uuid] = new_products[uuid]
+
+    _save_product_inventory(product_inventory)
+
 
     return True
 
 
-def get_product_inventory():
-
-    """Returns the product inventory as a dictionary of UUIDs."""
+def _get_inventory():
+    
+    """"Retrieves the product inventory from .json file."""
 
     product_inventory_path = Path(DATA_PATH + '/product_inventory.json')
     product_inventory_path.touch(exist_ok=True)
@@ -132,6 +136,17 @@ def get_product_inventory():
             product_inventory = json.load(read_in)
     except (ValueError, TypeError):  # if the inventory is empty
         product_inventory = {}
+
+    return product_inventory
+
+
+def get_product_inventory():
+
+    """Returns the product inventory as a dictionary of UUIDs."""
+
+    check_integrity()
+
+    product_inventory = _get_inventory()
 
     return product_inventory
 
@@ -158,7 +173,7 @@ def add_new_products(new_products: dict):
             num = int(uuid[-1]) + 1
             return uuid[:-1] + str(num)
 
-    product_inventory = get_product_inventory()
+    product_inventory = _get_inventory()
     added_uuids = []
 
     for uuid in new_products:
