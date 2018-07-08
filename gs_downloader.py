@@ -3,15 +3,11 @@ Script to locate and auto-download products from Copernicus Open Access Hub
 which contains ESA Sentinel Satellite products. https://scihub.copernicus.eu/
 
 TODO:
-    Write handling for co-ordinates lists that traverse mulitple MGRS squares
-    including sticthing of downloaded products (stitching may not be necessary
-    is all Sentinel products have sufficient overlap).
     Implemented load in of ROI coordinates from geojson files.
-    Decide of whether the multi-tile shape file needs addressing at all in this
-    script of if there work can be delegated further down the pipeline.
-    Remove MGRS module and replace with kml file
-    Implement better tile finder for s2 data products that is backwards
-    compatible with the old file name format.
+    Speak with Joe about issue with gs_gridtest.grid_under.request method which
+    returns many tiles when passed the boundary coordinates of a singe S2 tile.
+    Speak with Joe about possibly changing input format of the above method to
+    ((lon, lat), (lon, lat), ... ) instead of (lon1, lat1, lon2, lat2, ... ).
 
 George Worrall - University of Manchester 2018
 """
@@ -22,14 +18,15 @@ import warnings
 import hashlib
 import pathlib
 import zipfile
-import mgrs
 import requests
 from clint.textui import progress
 from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint, Polygon
 import gs_localmanager
+import gs_gridtest
 from gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
+
 
 
 class ProductQueryParams:
@@ -134,24 +131,22 @@ class ProductQueryParams:
             raise ValueError("The first and last co-ordinates given "
                              "must be the same.")
 
-        tile_list = []
-        m = mgrs.MGRS()  # converts latitude and longitude to MGRS co-ords
+        # TODO: Speak to joe about changing input format of grid_finder to
+        # [(lon, lat), (lon, lat), ... ] rather than [lon1, lat1, lon2, lat2]
 
-        for (lat, lon) in coordlist:
-            m_coord = m.toMGRS(lat, lon, MGRSPrecision=1)  # 7 digit output
-            tile = m_coord[:-2].decode("utf-8")  # sliced to 5 digit tile no.
-            tile_list.append(tile)
+        coords_tocheck = []
 
-        self.tiles = list(set(tile_list))
+        finder = gs_gridtest.grid_finder()
+
+        for (lon, lat) in coordlist:
+            coords_tocheck.append(lon)
+            coords_tocheck.append(lat)
+
+        tile_list = finder.request(coords_tocheck)
+        print(tile_list)
+
+        self.tiles = tile_list
         self.coords = coordlist
-
-        # TODO: Implement multi-tile support including stitching of downloaded
-        # products (stiching may not be necessary if all products have
-        # sufficient overlap).
-        if len(self.tiles) is not 1:
-            raise NotImplementedError("The given co-ordinates traverse more"
-                                      " than one MGRS tile. Multi MGRS tile"
-                                      " support has not yet been implemented.")
 
     def product_details(self, sat: str,
                         proclevel=False,
@@ -436,15 +431,29 @@ class CopernicusHubConnection:
         # convert from XML to dictionary format
         productlist = {}
 
+        def extract_coords(footprint):
+            # gets the coordslist from the polygon string supplied by ESA
+            coord_list = []
+            footprint = footprint[10:-2]
+            coords = footprint.split(',')
+            for coord in coords:
+                lon_coord = float(coord.split()[0])
+                lat_coord = float(coord.split()[1])
+                coord_list.append(lon_coord)
+                coord_list.append(lat_coord)
+            return coord_list
+
+        finder = gs_gridtest.grid_finder()
         for entry in entries:
             product = {}
             for field in entry:
-                if field.get('name') == 'identifier':
-                    if field.text.startswith('S2'):
-                        # TODO: implement more robust version that is backwards
-                        # compatible
-                        tile = field.text[-22:-17]
-                        product['s2tile'] = tile
+                # extract corresponding S2 tile
+                if field.get('name') == 'footprint':
+                    coords_list = extract_coords(field.text)
+                    # TODO: check with joe about getting grid_finder input format
+                    # changed and fixing bug where an S2 square catches all
+                    # boundaries of adjacents and outputs all squares
+                    product['s2tile'] = finder.request(coords_list)
                 if field.get('href') is not None:
                     if field.get('href').endswith("('Quicklook')/$value"):
                         product['quicklookdownload'] = field.get('href')
@@ -456,9 +465,10 @@ class CopernicusHubConnection:
                     continue
                 if field.get('name') != 'None':  # contain redudancies
                     product[field.get('name')] = field.text
-            # TODO: Implement 'utmzone' and 's2tile' for S1 products
-            # by using intersects polygon with kml file of S2 tiles
+            # TODO: Implement 'utmzone' info
             product['userprocessed'] = False
+            print(product['s2tile'])
+            print(product['identifier'])
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
