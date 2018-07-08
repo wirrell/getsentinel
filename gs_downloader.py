@@ -7,7 +7,6 @@ TODO:
     including sticthing of downloaded products (stitching may not be necessary
     is all Sentinel products have sufficient overlap).
     Implemented load in of ROI coordinates from geojson files.
-    Add forking for two product concurrent download.
     Decide of whether the multi-tile shape file needs addressing at all in this
     script of if there work can be delegated further down the pipeline.
     Remove MGRS module and replace with kml file
@@ -28,7 +27,7 @@ import requests
 from clint.textui import progress
 from convertbng.util import convert_lonlat
 import shapefile
-from shapely.geometry import MultiPoint
+from shapely.geometry import MultiPoint, Polygon
 import gs_localmanager
 from gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
@@ -420,7 +419,9 @@ class CopernicusHubConnection:
                                      '').format(filename, uuid))
         return filepath
 
-    def _handle_response(self, responsestring: str, procfilter: bool):
+    def _handle_response(self,
+                         responsestring: str,
+                         procfilter: bool):
 
         """
         Handles the query response using the xml library. Formats the xml data
@@ -577,6 +578,97 @@ class CopernicusHubConnection:
         return query
 
 
+def filter_overlaps(product_list: dict, coordinates: list):
+
+    """
+    Filters out any overlapping products if the ROI coordinates
+    are completely encompassed by one of the products and the sensing time for
+    both products is the same. (Products with the same sensing time will have
+    identical data in the overlapping regions.)
+    """
+
+    def extract_time(time_string):
+        # creates a datetime object from the given time string
+        sense_year = int(time_string[0:4])
+        sense_month = int(time_string[5:7])
+        sense_day = int(time_string[8:10])
+        sense_hour = int(time_string[11:13])
+        sense_minute = int(time_string[14:16])
+        sense_second = int(time_string[17:19])
+        time = datetime.datetime(sense_year,
+                                 sense_month,
+                                 sense_day,
+                                 sense_hour,
+                                 sense_minute,
+                                 sense_second)
+        return time
+
+    encompassing_products = []
+
+    ROI_shape = Polygon(coordinates)
+
+    for uuid, product in product_list.items():
+        # format the footprint string for use with pyshp
+        coord_list = []
+        footprint = product['footprint']
+        footprint = footprint[10:-2]
+        coords = footprint.split(',')
+        for coord in coords:
+            lon_coord = float(coord.split()[0])
+            lat_coord = float(coord.split()[1])
+            coord_list.append((lat_coord, lon_coord))
+        p = Polygon(coord_list)
+        # if ROI fully encompassed by a product
+        if ROI_shape.within(p):
+            encompassing_products.append(uuid)
+
+    # filter out duplicates
+    product_list_copy = product_list.copy()
+    for uuid in encompassing_products:
+        try:
+            product = product_list[uuid]
+        except KeyError:  # product already removed
+            continue
+        if product['platformname'].endswith('2'):
+
+            proclevel = product['processinglevel']
+            sensing_time = product['beginposition']
+
+            for uuid2, product2 in product_list_copy.items():
+                if (uuid is uuid2 or product2['platformname'] !=
+                  product['platformname']): # noqa
+                    continue
+                if (product2['processinglevel'] == proclevel and
+                  product2['beginposition'] == sensing_time): # noqa
+                    product_list.pop(uuid2, None)  # removes overlapping tile
+                    break
+
+        if product['platformname'].endswith('1'):
+
+            prodtype = product['producttype']
+            polarisation = product['polarisationmode']
+            sensing_begin = product['beginposition']
+            sensing_begin = extract_time(sensing_begin)
+            sensing_end = product['endposition']
+            sensing_end = extract_time(sensing_end)
+
+            for uuid2, product2 in product_list_copy.items():
+                if (uuid is uuid2 or product2['platformname'] !=
+                  product['platformname']): # noqa
+                    continue
+                sensing_begin_2 = product2['beginposition']
+                sensing_begin_2 = extract_time(sensing_begin_2)
+                # If second product has sensing time before the end of first
+                # product, that indicates data overlap
+                if (sensing_begin < sensing_begin_2 < sensing_end):
+                    if (product2['producttype'] == prodtype and
+                      product2['polarisationmode'] == polarisation): # noqa
+                        product_list.pop(uuid2, None)
+                        break
+
+    return product_list
+
+
 class ChecksumError(Exception):
     pass
 
@@ -588,11 +680,9 @@ if __name__ == "__main__":
     download_path = DATA_PATH
     quicklooks_path = QUICKLOOKS_PATH
 
-    # aiming for all S2 test products in coords and time frame
+    # aiming for best S2 test product in coords and time frame
+    # as filtered by filter_overlaps function
     # S2A_MSIL2A_20180626T110621_N0208_R137_T30UXC_20180626T120032
-    # S2A_MSIL2A_20180626T110621_N0208_R137_T30UWC_20180626T120032
-    # S2A_MSIL1C_20180626T110621_N0206_R137_T30UXC_20180626T120032
-    # S2A_MSIL1C_20180626T110621_N0206_R137_T30UWC_20180626T120032
     s2_testproduct = ProductQueryParams()
     t = datetime.date(2018, 6, 26)
     s2_testproduct.acquisition_date_range(t)
@@ -610,11 +700,10 @@ if __name__ == "__main__":
      [52.19499959454429, -1.454319601915816],
      [52.19345388039674, -1.457530077065015]]
     s2_testproduct.coordinates(test_coords)
-    s2_testproduct.product_details('S2', 'L1C')
+    s2_testproduct.product_details('S2', 'BEST')
 
     # Aiming for S1 test products
     # S1A_IW_SLC__1SDV_20180628T061437_20180628T061504_022553_027169_519F
-<<<<<<< HEAD
     s1_testproduct = ProductQueryParams()
     s1_testproduct.coords_from_file('test_files/CB7_4SS_grid_1 _combi.shp',
                                     '.shp',
@@ -629,27 +718,9 @@ if __name__ == "__main__":
     # Submit queries to ESA scihub API
     totals2, s2products = hub.submit_query(s2_testproduct)
     totals1, s1products = hub.submit_query(s1_testproduct)
+    s2products = filter_overlaps(s2products, s2_testproduct.coords)
+    s1products = filter_overlaps(s1products, s1_testproduct.coords)
     hub.download_quicklooks(s2products, quicklooks_path)
     hub.download_quicklooks(s1products, quicklooks_path)
     hub.download_products(s2products, download_path, verify=True)
     hub.download_products(s1products, download_path, verify=True)
-=======
-    #s1_testproduct = productQueryParams()
-    #s1_testproduct.coordsFromFile('test_files/CB7_4SS_grid_1 _combi.shp',
-#                                  '.shp',
-#                                  'BNG')
-
-    #t = datetime.date(2018, 6, 27)
-    #t_end = datetime.date(2018, 6, 28)
-    #s1_testproduct.acquisitionDateRange(t, t_end)
-    #s1_testproduct.productDetails('S1', 'L1', 'GRD', 'IW', 'VV VH')
-    #hub = CopernicusHubConnection(user, password)
-
-    # Submit queries to ESA scihub API
-#    totals2, s2products = hub.submitQuery(s2_testproduct)
-#    totals1, s1products = hub.submitQuery(s1_testproduct)
-#    hub.downloadQuicklooks(s2products, quicklooks_path)
-#    hub.downloadQuicklooks(s1products, quicklooks_path)
-#    hub.downloadProducts(s2products, download_path, verify=True)
-#    hub.downloadProcuts(s1products, download_path, verify=True)
->>>>>>> joe
