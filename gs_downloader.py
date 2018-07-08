@@ -97,7 +97,7 @@ class ProductQueryParams:
             lon_coords = wgs_list[0]
             lat_coords = wgs_list[1]
 
-        coords = list(zip(lat_coords, lon_coords))
+        coords = list(zip(lon_coords, lat_coords))
 
         m = MultiPoint(coords)  # imported from shapely module
         extents = m.convex_hull  # gets small polygon that encomps all points
@@ -114,7 +114,7 @@ class ProductQueryParams:
         are saved. Co-ordinates are also stored for later retreived product
         area coverage checking.
 
-        coordlist must be in the format [[lat, lon], [lat, lon], ... ]
+        coordlist must be in the format [[lon, lat], [lon, lat], ... ]
         First and last co-ordinates given in coordlist must be the same to
         complete the described area.
         """
@@ -543,9 +543,9 @@ class CopernicusHubConnection:
 
         value = '"intersects(POLYGON(('
         for coord in parameters.coords:
-            # must switch order of lat, lon to lon, lat as required by polygon
+            # order is lon, lat as required by polygon
             # format specified in ESA SciHub User Guide
-            value = value + str(coord[1]) + ' ' + str(coord[0]) + ','
+            value = value + str(coord[0]) + ' ' + str(coord[1]) + ','
         value = value[:-1] + ')))"'
         field = 'footprint:'
         term_join(field, value)
@@ -686,19 +686,20 @@ if __name__ == "__main__":
     s2_testproduct = ProductQueryParams()
     t = datetime.date(2018, 6, 26)
     s2_testproduct.acquisition_date_range(t)
+    # ESA required coordinates to be in (lon, lat) format
     test_coords = [
-     [52.19345388039674, -1.457530077065015],
-     [52.19090717497048, -1.459996965719496],
-     [52.18543304302305, -1.466515166082085],
-     [52.18127295502671, -1.463587991194426],
-     [52.17663695482379, -1.458228587403975],
-     [52.17444814271325, -1.455491238873678],
-     [52.17396223669407, -1.452644611915905],
-     [52.17417824001138, -1.444929550955296],
-     [52.19077295431794, -1.448993345097861],
-     [52.19282940614654, -1.450033434119889],
-     [52.19499959454429, -1.454319601915816],
-     [52.19345388039674, -1.457530077065015]]
+     [-1.457530077065015, 52.19345388039674],
+     [-1.459996965719496, 52.19090717497048],
+     [-1.466515166082085, 52.18543304302305],
+     [-1.463587991194426, 52.18127295502671],
+     [-1.458228587403975, 52.17663695482379],
+     [-1.455491238873678, 52.17444814271325],
+     [-1.452644611915905, 52.17396223669407],
+     [-1.444929550955296, 52.17417824001138],
+     [-1.448993345097861, 52.19077295431794],
+     [-1.450033434119889, 52.19282940614654],
+     [-1.454319601915816, 52.19499959454429],
+     [-1.457530077065015, 52.19345388039674]]
     s2_testproduct.coordinates(test_coords)
     s2_testproduct.product_details('S2', 'BEST')
 
