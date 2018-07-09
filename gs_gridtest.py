@@ -63,7 +63,7 @@ def WKT_to_list(wkt_multipolygon):
     pairs = wkt_multipolygon.split('(')[-1].split(')')[0].split(',')
     out_list = []
     for x in pairs:
-        x_ = x.split(' ')
+        x_ = x.split()
         # lon lat order
         out_list.append(float(x_[0]))
         out_list.append(float(x_[1]))

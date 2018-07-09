@@ -25,10 +25,10 @@ from clint.textui import progress
 from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint, Polygon
+from shapely.wkt import loads
 import gs_localmanager
 import gs_gridtest
 from gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
-
 
 
 class ProductQueryParams:
@@ -113,7 +113,7 @@ class ProductQueryParams:
         are saved. Co-ordinates are also stored for later retreived product
         area coverage checking.
 
-        coordlist must be in the format [[lon, lat], [lon, lat], ... ]
+        coordlist must be in the format [(lon1, lat1), (lon2, lat2), ... ]
         First and last co-ordinates given in coordlist must be the same to
         complete the described area.
         """
@@ -133,22 +133,17 @@ class ProductQueryParams:
             raise ValueError("The first and last co-ordinates given "
                              "must be the same.")
 
-        # TODO: Speak to joe about changing input format of grid_finder to
-        # [(lon, lat), (lon, lat), ... ] rather than [lon1, lat1, lon2, lat2]
+        # define Region Of Interest as a shapely object
 
-        coords_tocheck = []
+        ROI = Polygon(coordlist)
 
         finder = gs_gridtest.grid_finder()
-
-        for (lon, lat) in coordlist:
-            coords_tocheck.append(lon)
-            coords_tocheck.append(lat)
-
-        tile_list = finder.request(coords_tocheck)
-        print(tile_list)
+        coords = gs_gridtest.WKT_to_list(ROI.wkt)
+        tile_list = finder.request(coords)
 
         self.tiles = tile_list
-        self.coords = coordlist
+        self.coords = coords
+        self.ROI = ROI
 
     def product_details(self, sat: str,
                         proclevel=False,
@@ -445,7 +440,6 @@ class CopernicusHubConnection:
                 coord_list.append(lat_coord)
             return coord_list
 
-        finder = gs_gridtest.grid_finder()
         for entry in entries:
             product = {}
             for field in entry:
@@ -462,8 +456,10 @@ class CopernicusHubConnection:
                     product[field.get('name')] = field.text
             # TODO: Implement 'utmzone' info
             product['userprocessed'] = False
-            if 'tileid' not in product:
-                pass # sort S1 tile id here
+            if 'tileid' not in product:  # get S1 prod. corresponding S2 tiles
+                finder = gs_gridtest.grid_finder()
+                coord_list = gs_gridtest.WKT_to_list(product['footprint'])
+                product['tileid'] = finder.request(coord_list)
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
@@ -481,12 +477,12 @@ class CopernicusHubConnection:
                 except KeyError:
                     continue
                 # find matching tile and times
-                tile = product['identifier'][-22:-17]
+                tile = product['tileid']
                 sensingtime = product['beginposition']
                 otherproducts = productlist.copy()
                 otherproducts.pop(uuid, None)
                 for uuid2, product2 in otherproducts.items():
-                    tile2 = product2['identifier'][-22:-17]
+                    tile2 = product2['tileid']
                     sensingtime2 = product2['beginposition']
 
                     if tile == tile2 and sensingtime == sensingtime2:
@@ -546,12 +542,9 @@ class CopernicusHubConnection:
 
         # Formatting the co-ordinates intersect query
 
-        value = '"intersects(POLYGON(('
-        for coord in parameters.coords:
-            # order is lon, lat as required by polygon
-            # format specified in ESA SciHub User Guide
-            value = value + str(coord[0]) + ' ' + str(coord[1]) + ','
-        value = value[:-1] + ')))"'
+        value = '"intersects('
+        value = value + parameters.ROI.wkt  # add the ROI WKT format to query
+        value = value + ')"'
         field = 'footprint:'
         term_join(field, value)
 
@@ -583,7 +576,7 @@ class CopernicusHubConnection:
         return query
 
 
-def filter_overlaps(product_list: dict, coordinates: list):
+def filter_overlaps(product_list: dict, ROI: Polygon):
 
     """
     Filters out any overlapping products if the ROI coordinates
@@ -610,21 +603,11 @@ def filter_overlaps(product_list: dict, coordinates: list):
 
     encompassing_products = []
 
-    ROI_shape = Polygon(coordinates)
-
     for uuid, product in product_list.items():
         # format the footprint string for use with pyshp
-        coord_list = []
-        footprint = product['footprint']
-        footprint = footprint[10:-2]
-        coords = footprint.split(',')
-        for coord in coords:
-            lon_coord = float(coord.split()[0])
-            lat_coord = float(coord.split()[1])
-            coord_list.append((lat_coord, lon_coord))
-        p = Polygon(coord_list)
+        footprint = loads(product['footprint'])  # load in via shapely
         # if ROI fully encompassed by a product
-        if ROI_shape.within(p):
+        if ROI.within(footprint):
             encompassing_products.append(uuid)
 
     # filter out duplicates
@@ -724,8 +707,8 @@ if __name__ == "__main__":
     # Submit queries to ESA scihub API
     totals2, s2products = hub.submit_query(s2_testproduct)
     totals1, s1products = hub.submit_query(s1_testproduct)
-    s2products = filter_overlaps(s2products, s2_testproduct.coords)
-    s1products = filter_overlaps(s1products, s1_testproduct.coords)
+    s2products = filter_overlaps(s2products, s2_testproduct.ROI)
+    s1products = filter_overlaps(s1products, s1_testproduct.ROI)
     hub.download_quicklooks(s2products, quicklooks_path)
     hub.download_quicklooks(s1products, quicklooks_path)
     hub.download_products(s2products, download_path, verify=True)
