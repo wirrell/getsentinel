@@ -8,6 +8,8 @@ TODO:
     returns many tiles when passed the boundary coordinates of a singe S2 tile.
     Speak with Joe about possibly changing input format of the above method to
     ((lon, lat), (lon, lat), ... ) instead of (lon1, lat1, lon2, lat2, ... ).
+    Investigate use of shapely files to store coords in params, could make it
+    easier to pass WKT request for ROI to server.
 
 George Worrall - University of Manchester 2018
 """
@@ -447,13 +449,6 @@ class CopernicusHubConnection:
         for entry in entries:
             product = {}
             for field in entry:
-                # extract corresponding S2 tile
-                if field.get('name') == 'footprint':
-                    coords_list = extract_coords(field.text)
-                    # TODO: check with joe about getting grid_finder input format
-                    # changed and fixing bug where an S2 square catches all
-                    # boundaries of adjacents and outputs all squares
-                    product['s2tile'] = finder.request(coords_list)
                 if field.get('href') is not None:
                     if field.get('href').endswith("('Quicklook')/$value"):
                         product['quicklookdownload'] = field.get('href')
@@ -467,8 +462,8 @@ class CopernicusHubConnection:
                     product[field.get('name')] = field.text
             # TODO: Implement 'utmzone' info
             product['userprocessed'] = False
-            print(product['s2tile'])
-            print(product['identifier'])
+            if 'tileid' not in product:
+                pass # sort S1 tile id here
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
