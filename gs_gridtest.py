@@ -52,7 +52,24 @@ class grid_finder(object):
 
         Y_sub, names_sub = _remove_distant(X,Y,self.names)
         return _get_intersects(X,Y_sub,names_sub)
+    
+def WKT_to_list(wkt_multipolygon):
+    """ 
+    takes a Well Known Text string [i.e. 
+    'POLYGON(((lon_1 lat_1,lon_2 lat_2, ... )))'] and returns a
+    list of coordinates in format [lon_1, lat1, lon2, lat2, ... ]
+    
+    """
+    pairs = wkt_multipolygon.split('(')[-1].split(')')[0].split(',')
+    out_list = []
+    for x in pairs:
+        x_ = x.split(' ')
+        # lon lat order
+        out_list.append(float(x_[0]))
+        out_list.append(float(x_[1]))
+    return out_list
 
+# private functions
 def _get_lookup_arrays(LL_path='s2_tiling_grid_np_ll.npy',
                       names_path='s2_tiling_grid_np_names.npy'):
     """ Returns the array format grid polygons and names arrays
