@@ -341,6 +341,7 @@ class CopernicusHubConnection:
                       "download directory - skipping.".format(
                           product['filename'],
                           uuid))
+                productlist.remove(uuid, None)
                 continue
 
             print("Downloading product {0} / {1}.".format(i, total_products))
@@ -359,6 +360,8 @@ class CopernicusHubConnection:
         zip_files = [x for x in list(data_path.glob('*.zip'))]
         for zip_file in zip_files:
             zip_file.unlink()
+
+        gs_localmanager.add_new_products(product_inventory)
 
     def _download_single_product(self,
                                  uuid: str,
