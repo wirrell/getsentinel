@@ -10,6 +10,8 @@ very large polygons (>150 grid squares) due to the optimisation.
 
 from shapely.geometry import Polygon
 import numpy as np
+from pathlib import Path
+cwd = str(Path(__file__).resolve().parent)
 
 class grid_finder(object):
     """ Class for processing multiple grid lookup requests
@@ -17,8 +19,9 @@ class grid_finder(object):
     to calling a lookup request.
     """
     
-    def __init__(self,LL_path='s2_tiling_grid_np_ll.npy',
-                 names_path='s2_tiling_grid_np_names.npy'):
+    def __init__(self,LL_path=cwd+'/s2_tiling_grid_np_ll.npy',
+                 names_path=cwd+'/s2_tiling_grid_np_names.npy'):
+        
         # define arrays
         self.LLs, self.names = _get_lookup_arrays(LL_path,names_path)
         # do 360 conversion now
@@ -70,8 +73,8 @@ def WKT_to_list(wkt_multipolygon):
     return out_list
 
 # private functions
-def _get_lookup_arrays(LL_path='s2_tiling_grid_np_ll.npy',
-                      names_path='s2_tiling_grid_np_names.npy'):
+def _get_lookup_arrays(LL_path='./s2_tiling_grid_np_ll.npy',
+                      names_path='./s2_tiling_grid_np_names.npy'):
     """ Returns the array format grid polygons and names arrays
     
     """

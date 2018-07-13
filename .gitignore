@@ -5,3 +5,4 @@ user_info.txt
 /quicklooks/
 .ipynb_checkpoints/
 Joe_test.ipynb
+/getsentinel/__pycache__

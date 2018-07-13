@@ -26,9 +26,9 @@ from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
-import gs_localmanager
-import gs_gridtest
-from gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
+from . import gs_localmanager
+from . import gs_gridtest
+from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
 
 class ProductQueryParams:
@@ -268,21 +268,67 @@ class CopernicusHubConnection:
             raise RuntimeError(" Please set the co-ordinates of the product"
                                " search parameters before submitting a query.")
 
-        query = self._build_query(parameters)
-
-        r = requests.get('https://scihub.copernicus.eu/dhus/search',
-                         params=query,
-                         auth=(self.username, self.password))
+        start = 0
+        rows = 100
+        query = self._build_query(parameters, start=start, rows=rows)
+        response = None
 
         procfilter = False
         # Filter S2 L1C products out if L2A over same area exists
         if parameters.proclevel is 'BEST':
             procfilter = True
 
-        totalresults, productlist = self._handle_response(r.content,
-                                                          procfilter)
+        def send_query(query):
+            r = requests.get('https://scihub.copernicus.eu/dhus/search',
+                             params=query,
+                             auth=(self.username, self.password))
+            nonlocal response
+            response = ET.fromstring(r.content)  # parse to XML
 
-        return totalresults, productlist
+        def get_index_results():
+                # get the current results index and results per page
+            index = int(response.findall('{http://a9.com/-/spec/opensearch/'
+                                         '1.1/}startIndex')[0].text)
+            results_per_page = int(response.findall('{http://a9.com/-/spec/'
+                                                    'opensearch/1.1/}items'
+                                                    'PerPage')[0].text)
+            return index + results_per_page
+
+        # send first query to the server, will return default results 1 to 100
+        print("Querying the ESA SciHub using given search parameters.")
+        send_query(query)
+        # returns the products from the first query
+        num_results, product_list = self._handle_response(response,
+                                                          procfilter)
+        # gets the total amount of products that match the search query
+        # this number is used to define how far we need to iterate through
+        # the search pages (ESA enforces a limit of 100 results per page)
+        total_results = int(response.findall('{http://a9.com/-/spec/opensearch'
+                                         '/1.1/}totalResults')[0].text)
+
+        # while the number of results processed is less than the current page
+        # index + the amount of results on the page
+        while total_results > get_index_results():
+            # get the next 100 results
+            start = start + 100
+            # rebuild the query to ask for the next 100 results
+            query['start'] = start
+            # send the rebuild query
+            send_query(query)
+            results, products = self._handle_response(response,
+                                                          procfilter)
+            num_results = num_results + results
+            product_list = {**product_list, **products}
+            print("Paging through results, at index {0} / {1}"
+                  "".format(start, total_results))
+
+        if procfilter:
+            print("Processing filter discarded {0} sub-optimally processed "
+                  "products".format(total_results - num_results))
+
+        print("No. Products returned: {0}".format(num_results))
+
+        return num_results, product_list
 
     def download_quicklooks(self,
                             productlist: dict,
@@ -415,7 +461,7 @@ class CopernicusHubConnection:
         return filepath
 
     def _handle_response(self,
-                         responsestring: str,
+                         response: ET.Element,
                          procfilter: bool):
 
         """
@@ -424,12 +470,12 @@ class CopernicusHubConnection:
         of each product if procfilter = True.
         """
 
-        response = ET.fromstring(responsestring)  # parse to XML
-
         entries = response.findall('{http://www.w3.org/2005/Atom}entry')
 
         # convert from XML to dictionary format
         productlist = {}
+
+
 
         def extract_coords(footprint):
             # gets the coordslist from the polygon string supplied by ESA
@@ -460,9 +506,12 @@ class CopernicusHubConnection:
             # TODO: Implement 'utmzone' info
             product['userprocessed'] = False
             if 'tileid' not in product:  # get S1 prod. corresponding S2 tiles
-                finder = gs_gridtest.grid_finder()
-                coord_list = gs_gridtest.WKT_to_list(product['footprint'])
-                product['tileid'] = finder.request(coord_list)
+                if product['producttype'] == 'S2MSI2A':
+                    product['tileid'] = product['identifier'][39:44]
+                else:
+                    finder = gs_gridtest.grid_finder()
+                    coord_list = gs_gridtest.WKT_to_list(product['footprint'])
+                    product['tileid'] = finder.request(coord_list)
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
@@ -505,7 +554,10 @@ class CopernicusHubConnection:
 
         return totalresults, productlist
 
-    def _build_query(self, parameters: ProductQueryParams):
+    def _build_query(self,
+                     parameters: ProductQueryParams,
+                     start: int = 0,
+                     rows: int = 100):
 
         """
         Builds the query for use with the requests module.
@@ -575,6 +627,10 @@ class CopernicusHubConnection:
                 term_join(field, 'S2MSI1C')
             if parameters.proclevel == 'L2A':
                 term_join(field, 'S2MSI2A OR S2MSI2Ap')
+
+        # Add the start and end row limits for the query
+        query['start'] = str(start)
+        query['rows'] = str(rows)
 
         return query
 
