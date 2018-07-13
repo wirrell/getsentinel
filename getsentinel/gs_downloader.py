@@ -26,9 +26,9 @@ from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
-import gs_localmanager
-import gs_gridtest
-from gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
+from . import gs_localmanager
+from . import gs_gridtest
+from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
 
 class ProductQueryParams:

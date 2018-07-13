@@ -8,8 +8,8 @@ Downloaded product inventory manager.
 import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
-from gs_config import DATA_PATH
-import gs_downloader
+from .gs_config import DATA_PATH
+from . import gs_downloader
 
 
 def check_integrity():

@@ -1,8 +1,10 @@
 # Config file
 
 SEN2COR_ROOT_PATH='/Users/joefennell/documents/Sen2Cor-02.05.05-Darwin64/bin/L2A_Process'
-DATA_PATH='data/'
-QUICKLOOKS_PATH='quicklooks/'
+#DATA_PATH='/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat'
+DATA_PATH = 'data/'
+#QUICKLOOKS_PATH='/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat/quicklooks'
+QUICKLOOKS_PATH = 'quicklooks/'
 def _getlogin():
     try:
         with open('user_info.txt', 'r') as f:

@@ -3,3 +3,4 @@ user_info.txt
 *.swp
 /data/
 /quicklooks/
+/getsentinel/__pycache__
