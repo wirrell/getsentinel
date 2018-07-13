@@ -3,3 +3,5 @@ user_info.txt
 *.swp
 /data/
 /quicklooks/
+.ipynb_checkpoints/
+Joe_test.ipynb
