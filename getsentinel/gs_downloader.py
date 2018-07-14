@@ -248,8 +248,9 @@ class CopernicusHubConnection:
 
         url = 'https://scihub.copernicus.eu/dhus/search?q=' + query
         r = requests.get(url, auth=(self.username, self.password))
+        response = ET.fromstring(r.content)  # parse to XML
 
-        total_results, product_list = self._handle_response(r.content, False)
+        total_results, product_list = self._handle_response(response, False)
 
         return total_results, product_list
 
