@@ -407,7 +407,7 @@ class CopernicusHubConnection:
         for zip_file in zip_files:
             zip_file.unlink()
 
-        gs_localmanager.add_new_products(product_inventory)
+        gs_localmanager.add_new_products(productlist)
 
     def _download_single_product(self,
                                  uuid: str,

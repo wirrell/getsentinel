@@ -121,12 +121,11 @@ def check_integrity():
 
     _save_product_inventory(product_inventory)
 
-
     return True
 
 
 def _get_inventory():
-    
+
     """"Retrieves the product inventory from .json file."""
 
     product_inventory_path = Path(DATA_PATH + '/product_inventory.json')
@@ -190,9 +189,3 @@ def add_new_products(new_products: dict):
     _save_product_inventory(product_inventory)
 
     return added_uuids
-
-
-if __name__ == '__main__':
-    check_integrity()
-    product_inventory = get_product_inventory()
-    print(len(product_inventory))
