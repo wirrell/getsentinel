@@ -248,8 +248,9 @@ class CopernicusHubConnection:
 
         url = 'https://scihub.copernicus.eu/dhus/search?q=' + query
         r = requests.get(url, auth=(self.username, self.password))
+        response = ET.fromstring(r.content)  # parse to XML
 
-        total_results, product_list = self._handle_response(r.content, False)
+        total_results, product_list = self._handle_response(response, False)
 
         return total_results, product_list
 
@@ -407,7 +408,7 @@ class CopernicusHubConnection:
         for zip_file in zip_files:
             zip_file.unlink()
 
-        gs_localmanager.add_new_products(product_inventory)
+        gs_localmanager.add_new_products(productlist)
 
     def _download_single_product(self,
                                  uuid: str,

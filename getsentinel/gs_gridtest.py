@@ -73,8 +73,8 @@ def WKT_to_list(wkt_multipolygon):
     return out_list
 
 # private functions
-def _get_lookup_arrays(LL_path='./s2_tiling_grid_np_ll.npy',
-                      names_path='./s2_tiling_grid_np_names.npy'):
+def _get_lookup_arrays(LL_path=cwd+'/s2_tiling_grid_np_ll.npy',
+                      names_path=cwd+'/s2_tiling_grid_np_names.npy'):
     """ Returns the array format grid polygons and names arrays
     
     """
