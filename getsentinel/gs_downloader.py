@@ -382,13 +382,13 @@ class CopernicusHubConnection:
         total_products = len(productlist)
         i = 1  # used for product count
 
-        for uuid, product in productlist.items():
+        for uuid, product in productlist.copy().items():
             if uuid in already_downloaded:  # skip files already downloaded
                 print("Product {0} with UUID {1} is already present in the"
-                      "download directory - skipping.".format(
+                      " download directory - skipping.".format(
                           product['filename'],
                           uuid))
-                productlist.remove(uuid, None)
+                productlist.pop(uuid, None)
                 continue
 
             print("Downloading product {0} / {1}.".format(i, total_products))
