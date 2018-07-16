@@ -627,7 +627,7 @@ class CopernicusHubConnection:
             if parameters.proclevel == 'L1C':
                 term_join(field, 'S2MSI1C')
             if parameters.proclevel == 'L2A':
-                term_join(field, 'S2MSI2A OR S2MSI2Ap')
+                term_join(field, 'S2MSI2A')
 
         # Add the start and end row limits for the query
         query['start'] = str(start)
