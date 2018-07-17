@@ -125,6 +125,6 @@ class processor(object):
     def __init__(self,pipelines=pipelines):
 
         self.pipelines = pipelines
-        pass
 
-    #def
+    def process():
+        pass

@@ -18,16 +18,16 @@ class grid_finder(object):
     By default, this loads the lookup arrays into memory prior
     to calling a lookup request.
     """
-    
+
     def __init__(self,LL_path=cwd+'/s2_tiling_grid_np_ll.npy',
                  names_path=cwd+'/s2_tiling_grid_np_names.npy'):
-        
+
         # define arrays
         self.LLs, self.names = _get_lookup_arrays(LL_path,names_path)
         # do 360 conversion now
         # transform
         self.LLs[:,::2] = _to_360(self.LLs[:,::2])
-    
+
     def request(self,X):
         """
         Returns a list of grid squares intersecting X when
@@ -47,7 +47,7 @@ class grid_finder(object):
         # lets make a copy of the tiling array
         Y = np.copy(self.LLs)
 
-        
+
 
         # rotate by same vector
         yrot = _rotate(Y[:,::2],rot)
@@ -55,13 +55,13 @@ class grid_finder(object):
 
         Y_sub, names_sub = _remove_distant(X,Y,self.names)
         return _get_intersects(X,Y_sub,names_sub)
-    
+
 def WKT_to_list(wkt_multipolygon):
-    """ 
-    takes a Well Known Text string [i.e. 
+    """
+    takes a Well Known Text string [i.e.
     'POLYGON(((lon_1 lat_1,lon_2 lat_2, ... )))'] and returns a
     list of coordinates in format [lon_1, lat1, lon2, lat2, ... ]
-    
+
     """
     pairs = wkt_multipolygon.split('(')[-1].split(')')[0].split(',')
     out_list = []
@@ -76,13 +76,13 @@ def WKT_to_list(wkt_multipolygon):
 def _get_lookup_arrays(LL_path=cwd+'/s2_tiling_grid_np_ll.npy',
                       names_path=cwd+'/s2_tiling_grid_np_names.npy'):
     """ Returns the array format grid polygons and names arrays
-    
+
     """
     # The data are stored as a numpy array as this is the primary
-    # format for use in 
+    # format for use in
     LLs = np.load(LL_path)
     names = np.load(names_path)
-    
+
     return LLs,names
 
 def _array_to_shapely(array):
@@ -126,11 +126,11 @@ def _remove_distant(X,Y,names,lat_thresh=5,lon_thresh=10):
     set the thresholds conservatively as there are no checks
     for areas of the test polygon that do not have a grid square
     """
-    
+
     # lat boundaries
     xmin = X[1::2].min()
     xmax = X[1::2].max()
-    
+
     # subset poly array
     Y2 = Y[np.all((
         Y[:,0]<(180+lon_thresh),
@@ -138,7 +138,7 @@ def _remove_distant(X,Y,names,lat_thresh=5,lon_thresh=10):
         Y[:,1]>(xmin-lat_thresh),
         Y[:,1]<(xmax+lat_thresh)),axis=0
     ),:]
-    
+
     # subset names array with same rules
     names2 = names[np.all((
         Y[:,0]<(180+lon_thresh),
@@ -146,7 +146,7 @@ def _remove_distant(X,Y,names,lat_thresh=5,lon_thresh=10):
         Y[:,1]>(xmin-lat_thresh),
         Y[:,1]<(xmax+lat_thresh)),axis=0
     )]
-    
+
     return Y2,names2
 
 def _get_intersects(X,Y,names):
@@ -156,40 +156,43 @@ def _get_intersects(X,Y,names):
     X_shp = _array_to_shapely(X)
     squares = _array_to_shapely(Y)
     intersects = []
+    areas = []
     # iterate all squares in sub_array
     for square,name in zip(squares,names):
         if square.intersects(X_shp):
-            intersects.append(name)           
-    return intersects
+            intersects.append(name)
+            areas.append(square.intersection(X_shp).area)
+    major_square = np.array(intersects)[np.array(areas).argmax()]
+    return intersects, major_square
 
 
-if __name__ == "__main__":
-    
-    # test script
-    
-    lookup = gs_gridtest.grid_finder()
-
-    # pakistan test polygon
-    X = [70.07080078125,
-    33.96158628979907,
-    68.31298828125,
-    30.80791068136646,
-    71.3671875,
-    28.285033294640684,
-    74.15771484375,
-    29.38217507514529,
-    75.12451171875,
-    32.175612478499325,
-    72.83935546875,
-    33.87041555094183,
-    70.07080078125,
-    33.96158628979907]
-
-    pakistan = lookup.request(X)
-
-    print('The polygon covers {} squares, including {}, {}, {},...'.format(
-        len(pakistan),
-        pakistan[0],
-        pakistan[1],
-        pakistan[2]
-    ))
+# if __name__ == "__main__":
+#
+#     # test script
+#
+#     lookup = gs_gridtest.grid_finder()
+#
+#     # pakistan test polygon
+#     X = [70.07080078125,
+#     33.96158628979907,
+#     68.31298828125,
+#     30.80791068136646,
+#     71.3671875,
+#     28.285033294640684,
+#     74.15771484375,
+#     29.38217507514529,
+#     75.12451171875,
+#     32.175612478499325,
+#     72.83935546875,
+#     33.87041555094183,
+#     70.07080078125,
+#     33.96158628979907]
+#
+#     pakistan = lookup.request(X)
+#
+#     print('The polygon covers {} squares, including {}, {}, {},...'.format(
+#         len(pakistan),
+#         pakistan[0],
+#         pakistan[1],
+#         pakistan[2]
+#     ))
