@@ -56,7 +56,7 @@ def check_integrity():
         with open(file_info[0], 'r') as read_in:
             file_info_tree = ET.parse(read_in)
             root = file_info_tree.getroot()
-            product_info['identifier'] = filename[-5]
+            product_info['identifier'] = filename[:-5]
             required_tags = ['PROCESSING_LEVEL',
                              'PRODUCT_TYPE',
                              'PROCESSING_BASELINE']
@@ -70,11 +70,17 @@ def check_integrity():
                                        "".format(file_info[0]))
             for child in root[0][0]:
                 if child.tag == 'PROCESSING_LEVEL':
-                    product_info['processinglevel'] = root[0][0][3].text
-                if root[0][0][4].tag == 'PRODUCT_TYPE':
-                    product_info['producttype'] = root[0][0][4].text
-                if root[0][0][5].tag == 'PROCESSING_BASELINE':
-                    product_info['processingbaseline'] = root[0][0][5].text
+                    product_info['processinglevel'] = child.text
+                if child.tag == 'PRODUCT_TYPE':
+                    product_info['producttype'] = child.text
+                if child.tag == 'PROCESSING_BASELINE':
+                    product_info['processingbaseline'] = child.text
+                if child.tag == 'L2A_Product_Organisation':
+                    if 'tileid' not in product_info:
+                        # hack to pull out tileid
+                        tileid = child[0][0][0].text[-13:-8]
+                        print(tileid)
+                        product_info['tileid'] = tileid
             product_info['downloadlink'] = None
             product_info['filename'] = filename
 
@@ -89,6 +95,8 @@ def check_integrity():
     new_products = {}
 
     for filename in product_list_add:
+        print("Adding user added file {0} to product"
+              " inventory.".format(filename))
         if not (filename.startswith('S1') or filename.startswith('S2')):
             raise RuntimeError("Custom product file renaming is not"
                                " supported. Product names must start with"

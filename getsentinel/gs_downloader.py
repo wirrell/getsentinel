@@ -349,6 +349,8 @@ class CopernicusHubConnection:
         quicklooks_path.mkdir(exist_ok=True)
         existing_quicklooks = [x for x in list(quicklooks_path.glob('*'))]
 
+        print("Downloading quicklooks to {0}".format(QUICKLOOKS_PATH))
+
         for uuid, product in productlist.items():
             if product['identifier'] in existing_quicklooks:
                 pass  # skip if already downloaded
@@ -476,20 +478,6 @@ class CopernicusHubConnection:
         # convert from XML to dictionary format
         productlist = {}
 
-
-
-        def extract_coords(footprint):
-            # gets the coordslist from the polygon string supplied by ESA
-            coord_list = []
-            footprint = footprint[10:-2]
-            coords = footprint.split(',')
-            for coord in coords:
-                lon_coord = float(coord.split()[0])
-                lat_coord = float(coord.split()[1])
-                coord_list.append(lon_coord)
-                coord_list.append(lat_coord)
-            return coord_list
-
         for entry in entries:
             product = {}
             for field in entry:
@@ -501,18 +489,18 @@ class CopernicusHubConnection:
                         product['downloadlink'] = field.get('href')
                 if field.get('name') == 'uuid':
                     uuid = field.text
+                    product['origin'] = field.text
                     continue
                 if field.get('name') != 'None':  # contain redudancies
                     product[field.get('name')] = field.text
             # TODO: Implement 'utmzone' info
             product['userprocessed'] = False
+            # TODO: Decide whether tileid is still valid for use now that the
+            # ESA have removed it from the xml response.
             if 'tileid' not in product:  # get S1 prod. corresponding S2 tiles
-                if product['producttype'] == 'S2MSI2A':
-                    product['tileid'] = product['identifier'][39:44]
-                else:
-                    finder = gs_gridtest.grid_finder()
-                    coord_list = gs_gridtest.WKT_to_list(product['footprint'])
-                    product['tileid'] = finder.request(coord_list)
+                finder = gs_gridtest.grid_finder()
+                coord_list = gs_gridtest.WKT_to_list(product['footprint'])
+                product['tileid'] = finder.request(coord_list)
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
