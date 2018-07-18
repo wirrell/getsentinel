@@ -17,6 +17,7 @@ def check_integrity():
     """Checks the integrity of the current inventory."""
 
     data_path = Path(DATA_PATH)
+    data_path.mkdir(exist_ok=True)
 
     product_inventory = _get_inventory()
 

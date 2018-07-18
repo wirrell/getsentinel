@@ -495,11 +495,12 @@ class CopernicusHubConnection:
                     product[field.get('name')] = field.text
             # TODO: Implement 'utmzone' info
             product['userprocessed'] = False
-            # TODO: Decide whether tileid is still valid for use now that the
-            # ESA have removed it from the xml response.
             if 'tileid' not in product:  # get S1 prod. corresponding S2 tiles
                 finder = gs_gridtest.grid_finder()
                 coord_list = gs_gridtest.WKT_to_list(product['footprint'])
+                # returns list of all S2 tiles the product intersects
+                # and the majority tile in format
+                # ([tile1, tile2, ... ], maj_tile)
                 product['tileid'] = finder.request(coord_list)
             productlist[uuid] = product
 
