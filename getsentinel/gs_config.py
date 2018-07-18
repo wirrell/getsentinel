@@ -5,6 +5,7 @@ SEN2COR_ROOT_PATH='/Users/joefennell/documents/Sen2Cor-02.05.05-Darwin64/bin/L2A
 DATA_PATH = 'data/'
 #QUICKLOOKS_PATH='/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat/quicklooks'
 QUICKLOOKS_PATH = 'quicklooks/'
+S1GRAPHS_PATH = 's1_graphs/'
 def _getlogin():
     try:
         with open('user_info.txt', 'r') as f:
