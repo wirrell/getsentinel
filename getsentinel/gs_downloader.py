@@ -305,7 +305,7 @@ class CopernicusHubConnection:
         # this number is used to define how far we need to iterate through
         # the search pages (ESA enforces a limit of 100 results per page)
         total_results = int(response.findall('{http://a9.com/-/spec/opensearch'
-                                         '/1.1/}totalResults')[0].text)
+                                             '/1.1/}totalResults')[0].text)
 
         # while the number of results processed is less than the current page
         # index + the amount of results on the page
@@ -317,7 +317,7 @@ class CopernicusHubConnection:
             # send the rebuild query
             send_query(query)
             results, products = self._handle_response(response,
-                                                          procfilter)
+                                                      procfilter)
             num_results = num_results + results
             product_list = {**product_list, **products}
             print("Paging through results, at index {0} / {1}"
@@ -625,7 +625,9 @@ class CopernicusHubConnection:
         return query
 
 
-def filter_overlaps(product_list: dict, ROI: Polygon):
+def filter_overlaps(product_list: dict,
+                    ROI: Polygon,
+                    external_list: dict = False):
 
     """
     Filters out any overlapping products if the ROI coordinates
@@ -652,12 +654,21 @@ def filter_overlaps(product_list: dict, ROI: Polygon):
 
     encompassing_products = []
 
-    for uuid, product in product_list.items():
+    for uuid, product in product_list.copy().items():
         # format the footprint string for use with pyshp
         footprint = loads(product['footprint'])  # load in via shapely
         # if ROI fully encompassed by a product
         if ROI.within(footprint):
             encompassing_products.append(uuid)
+        if external_list:
+            if uuid in external_list:
+                # if encompassing product already in given list
+                # then remove it. This stops the edge case where one
+                # encompassing product gets preferred over another even though
+                # the second is already downloaded (ie. present in the external
+                # list). This would cause duplicate data in the final batch
+                # list.
+                product_list.pop(uuid, None)
 
     # filter out duplicates
     product_list_copy = product_list.copy()
