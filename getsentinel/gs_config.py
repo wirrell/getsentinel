@@ -1,10 +1,8 @@
 # Config file
 
-from pathlib import Path
-
 SEN2COR_ROOT_PATH='/Users/joefennell/documents/Sen2Cor-02.05.05-Darwin64/bin/L2A_Process'
 #DATA_PATH='/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat'
-DATA_PATH = 'data/'
+DATA_PATH = '/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat/'
 #QUICKLOOKS_PATH='/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat/quicklooks'
 QUICKLOOKS_PATH = 'quicklooks/'
 S1GRAPHS_PATH = 's1_graphs/'

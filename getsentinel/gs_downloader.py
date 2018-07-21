@@ -119,6 +119,7 @@ class ProductQueryParams:
         """
 
         if type(coordlist) is not list or len(coordlist[0]) is not 2:
+            print(self.coordinates.__doc__)
             raise TypeError("You must follow the coordlist format "
                             "requirements.")
 
@@ -391,6 +392,7 @@ class CopernicusHubConnection:
                           product['filename'],
                           uuid))
                 productlist.pop(uuid, None)
+                i = i + 1
                 continue
 
             print("Downloading product {0} / {1}.".format(i, total_products))
@@ -401,16 +403,13 @@ class CopernicusHubConnection:
             extract_to = downloadpath
             zip_ref.extractall(extract_to)
             zip_ref.close()
-
+            # remove leftover .zip file
+            pathlib.Path(filename).unlink()
+            # add products iteratively so that if process crashes at any point,
+            # earlier products downloaded in the chain will be present in the
+            # inventory.
+            gs_localmanager.add_new_products({uuid: product})
             i = i + 1
-
-        data_path = pathlib.Path(DATA_PATH)
-        # collect all the leftover .zip files
-        zip_files = [x for x in list(data_path.glob('*.zip'))]
-        for zip_file in zip_files:
-            zip_file.unlink()
-
-        gs_localmanager.add_new_products(productlist)
 
     def _download_single_product(self,
                                  uuid: str,
