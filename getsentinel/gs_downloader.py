@@ -26,6 +26,7 @@ from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
+from osgeo import ogr, osr
 from . import gs_localmanager
 from . import gs_gridtest
 from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
@@ -62,10 +63,7 @@ class ProductQueryParams:
 
         self.dates = [acqstart, acqend]
 
-    def coords_from_file(self,
-                         filepath: str,
-                         filetype: str,
-                         coordsystem: str = 'WGS'):
+    def coords_from_file(self, filepath: str, filetype: str):
 
         """
         Loads in the coordinates of a Region Of Interest (ROI) from a shape
@@ -80,28 +78,31 @@ class ProductQueryParams:
             raise NotImplementedError('Currently only .shp files are'
                                       'supported.')
 
-        if coordsystem not in ['WGS', 'BNG']:
-            raise NotImplementedError('Currently only supports WGS and BNG'
-                                      'format.')
+        # set WGS84 spatial ref
+        wgs84 = osr.SpatialReference()
+        wgs84.ImportFromEPSG(4326)
 
-        lon_coords = []
-        lat_coords = []
+        shp = ogr.Open(filepath)
+        layer = shp.GetLayer()
+        shp_crs = layer.GetSpatialRef()
+        x_coords = []
+        y_coords = []
         shp = shapefile.Reader(filepath)
         for shape in shp.shapes():  # extract all points from all shapes
             for point in shape.points:  # in the file
-                lon_coords.append(point[0])
-                lat_coords.append(point[1])
-        if coordsystem == 'BNG':  # convert to WGS
-            wgs_list = convert_lonlat(lon_coords, lat_coords)
-            lon_coords = wgs_list[0]
-            lat_coords = wgs_list[1]
-
-        coords = list(zip(lon_coords, lat_coords))
-
-        m = MultiPoint(coords)  # imported from shapely module
-        extents = m.convex_hull  # gets small polygon that encomps all points
-
-        coords = list(extents.exterior.coords)
+                x_coords.append(point[0])
+                y_coords.append(point[1])
+        coords = list(zip(x_coords, y_coords))
+        m = MultiPoint(coords)  # import into shapely
+        shape_extents = m.convex_hull  # gets polygon that encomps all points
+        if shp_crs != wgs84:  # if already WGS84 - skip
+            transform = osr.CoordinateTransformation(shp_crs, wgs84)
+            # now reproject in ogr
+            shape_ = ogr.CreateGeometryFromWkt(shape_extents.wkt)
+            shape_.Transform(transform)
+            # back to shapely for easy coord extraction
+            shape_extents = loads(shape_.ExportToWkt())
+        coords = list(shape_extents.exterior.coords)
 
         self.coordinates(coords)
 
