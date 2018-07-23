@@ -22,7 +22,6 @@ import subprocess
 import warnings
 from pathlib import Path
 import numpy as np
-from matplotlib import pyplot
 import shapely
 import shapefile
 import rasterio
@@ -42,10 +41,16 @@ class Stacker():
     individual shape files.
     """
 
-    def __init__(self, product_list: dict, shape_files: list):
+    def __init__(self,
+                 product_list: dict,
+                 shape_files: list,
+                 start_date: datetime.date,
+                 end_date: datetime.date):
 
         self.products = product_list
         self.shape_files = shape_files
+        self.start_date = start_date
+        self.end_date = end_date
         # generates the shapely objects for the products
         self._gen_product_shapes(product_list)
         # generates the shapely objects for the ROIs
@@ -59,15 +64,6 @@ class Stacker():
         self.band_list = False
         self.start_date = False
         self.end_date = False
-
-    def set_date_limit(self,
-                       start_date: datetime.date,
-                       end_date: datetime.date):
-
-        """Set an optional date period from which to stamp out date."""
-
-        self.start_date = start_date
-        self.end_date = end_date
 
     def set_bands(self, s1_band_list: list = [], s2_band_list: list = []):
 
@@ -144,8 +140,9 @@ class Stacker():
                           " band {1} - skipping.".format(product['identifier'],
                                                          band))
                     continue
-                for band_file in band_files:
-                    self._extract_data(band_file, uuid, band)
+                # should only be one band file per band in Sentinel products
+
+                self._extract_data(band_files[0], uuid, band)
 
     def _extract_data(self,
                       band_file: Path,
@@ -182,23 +179,37 @@ class Stacker():
                                     ' {0} {1}').format(str(band_file),
                                                        str(new_file))
                     # call gdalwarp in subprocess to geocode S1 file
-                    subprocess.run(gdal_command, shell=True)
+                    try:
+                        subprocess.run(gdal_command, shell=True)
+                    except KeyboardInterrupt:
+                        # Stop half-calculated rasters from taking up space
+                        # upon keyboard interrupt.
+                        Path(new_file).unlink()
+
                 band_file = new_file
 
         # get the shape the reside within this product
         associated_ROIs = self.job_list[uuid]
 
         with rasterio.open(str(band_file), 'r') as raster:
+            dead_this_raster = 0
             for ROI in associated_ROIs:
                 mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
                 out_image, out_transform = rasterio.mask.mask(raster,
                                                               mask,
                                                               crop=True)
-                print(ROI)
-                print(band_file)
-                pyplot.imshow(out_image[0])
-                pyplot.show()
-                # NOTE: continue here
+
+                if np.count_nonzero(out_image) is 0:
+                    # The mask has fallen victim the the traversty that is ESA
+                    # polygons being actually sligthly larger than the product
+                    # data they represent. Ie. the ROI is in the dead zone!
+                    continue
+            # NOTE: continue here, putting layers into layer lists and adding
+            # info to arrays. Consider storing layers in list with date strings
+            # which can be used to order them. Need to work out some way of
+            # ordering layers before combining them.
+            exit()
+                
 
     def _allocate_ROIs(self):
 
@@ -226,8 +237,12 @@ class Stacker():
 
         # ESA product footprints are in WGS84 (epsg: 4326)
         for uuid, product in product_list.items():
-            product_shape = shapely.wkt.loads(product['footprint'])
-            product_boundaries[uuid] = product_shape
+            product_start = datetime.datetime.strptime(
+                                                product['beginposition'][:10],
+                                                '%Y-%m-%d').date()
+            if self.start_date <= product_start <= self.end_date:
+                product_shape = shapely.wkt.loads(product['footprint'])
+                product_boundaries[uuid] = product_shape
 
         self.product_boundaries = product_boundaries
 
@@ -268,3 +283,21 @@ class Stacker():
             ROIs[filename] = shape
 
         self.ROIs = ROIs
+
+class InfoArray(np.ndarray):
+    
+    """Used to add an attribute to an existing numpy array.
+    from: 
+        https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html
+    """
+
+    def __new__(cls, input_array, info=None):
+        # Input array is an already formed ndarray instance
+        # We first cast to be our class type
+        obj = np.asarray(input_array).view(cls)
+        obj.info = info
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None: return
+        self.info = getattr(obj, 'info', None)
