@@ -12,17 +12,24 @@ TODO:
     Implement S2 product handling.
     Implement other band_list preferences in run()
     Implement data coherency functionality
+    Speak to Joe about implemented geocode GDAL warp in the preprocessing
+    module.
 """
 
 from . import gs_config
 import datetime
+import subprocess
+import warnings
 from pathlib import Path
 import numpy as np
+from matplotlib import pyplot
 import shapely
 import shapefile
 import rasterio
 import rasterio.mask
+import rasterio.errors as re
 from osgeo import osr, ogr
+
 
 S1_RASTER_PATH = '/measurement/'  # where .tiff files reside in S1 .SAFE
 
@@ -140,7 +147,10 @@ class Stacker():
                 for band_file in band_files:
                     self._extract_data(band_file, uuid, band)
 
-    def _extract_data(self, band_file: Path, uuid: str, band: str):
+    def _extract_data(self,
+                      band_file: Path,
+                      uuid: str,
+                      band: str):
 
         """
         Checks the joblist to see what ROIs need to be postage stamped out of
@@ -150,18 +160,45 @@ class Stacker():
         add it to the corresponding list in the layer_stack.
         """
 
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            raster = rasterio.open(str(band_file), 'r')
+            raster_epsg = 'EPSG:' + str(raster.gcps[1]).split(':')[-1]
+            raster.close()  # close file link so gdalwarp can modify the file
+
+        # S1 products are georeferenced but no geocoded, so they return a
+        # NotGeoreferencedWarning so must use gdalwarp
+        # to introduce geocode for use in rasterio
+        # TODO: Implement the geocoding in gs_preprocessing rather than here.
+        if caught_warnings:
+            if caught_warnings[0].category is re.NotGeoreferencedWarning:
+                suffix = band_file.suffix
+                file_path = str(band_file)[:-len(suffix)]
+                new_file = file_path + '-geocoded' + band_file.suffix
+                if not Path(new_file).exists():
+                    print('Correcting georeferencing of file with'
+                          ' UUID: {0}'.format(uuid))
+                    gdal_command = ('gdalwarp -tps -r bilinear'
+                                    ' -t_srs ' + raster_epsg +
+                                    ' {0} {1}').format(str(band_file),
+                                                       str(new_file))
+                    # call gdalwarp in subprocess to geocode S1 file
+                    subprocess.run(gdal_command, shell=True)
+                band_file = new_file
+
         # get the shape the reside within this product
         associated_ROIs = self.job_list[uuid]
 
-        for ROI in associated_ROIs:
-            mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
-            print(self.product_boundaries[uuid].contains(self.ROIs[ROI]))
-            with rasterio.open(str(band_file), 'r') as src:
-                pass
-
-            # TODO: implement masking procedure
-            # NOTE: will need to fix crs read in for Sentinel-1 or develop work
-            #       around.
+        with rasterio.open(str(band_file), 'r') as raster:
+            for ROI in associated_ROIs:
+                mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
+                out_image, out_transform = rasterio.mask.mask(raster,
+                                                              mask,
+                                                              crop=True)
+                print(ROI)
+                print(band_file)
+                pyplot.imshow(out_image[0])
+                pyplot.show()
+                # NOTE: continue here
 
     def _allocate_ROIs(self):
 
