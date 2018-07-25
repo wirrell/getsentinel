@@ -8,13 +8,9 @@ TODO:
 """
 
 from . import gs_config
-from . import gs_localmanager
+from .gs_localmanager import SEN2COR_ROOT_PATH, DATA_PATH
 import xml.etree.ElementTree as ET
 import warnings
-
-pipelines = {'S2':{'producttype':'S2L1C','commandlineprocessor':'L2A_Process'},
-             'S1':{'instrumentshortname':'GRD','commandlineprocessor':'s1tbx',
-             'graphfiletemplate':'google_graph.xml'}}
 
 def get_processable_files(inventory=None, ignore_processed=True):
     """
@@ -62,7 +58,7 @@ def get_processable_files(inventory=None, ignore_processed=True):
             processed_S1.add(uuid.split('-user')[0])
 
         else:
-            prod_warning(uuid)
+            _prod_warning(uuid)
 
     # logic testing
     # S2 processing list
@@ -83,8 +79,38 @@ def get_processable_files(inventory=None, ignore_processed=True):
     return out
 
 
+def process(uuid,pipeline,inventory=None):
+    """
+    Runs the processing operation for a given uuid/pipeline pair.
+
+    Arguments:
+    uuid - uuid of product
+    pipeline - currently either "S1" or "S2"
+    """
+    # get inventory file if not passed to function
+    if inventory == None:
+        inventory = gs_localmanager.get_product_inventory()
+
+    # retrieve product dictionary
+    product_entry = inventory[uuid]
+    # currently has explicit coding of pipeline, in case more added
+    if pipeline == 'S1':
+        new_fname = _process_S1(product_entry)
+        add_S1_processed_to_inventory(uuid,new_fname)
+        # not sure if necessary, but seems a good time to do an integ checking
+        return gs_localmanager.check_integrity()
+
+    elif pipeline == 'S2':
+        new_fname = _process_S2(product_entry)
+        add_S2_processed_to_inventory(uuid,new_fname)
+        # not sure if necessary, but seems a good time to do an integ checking
+        return gs_localmanager.check_integrity()
+
+    else:
+        raise NotImplementedError('Unknown pipeline')
+
 # warnings
-def prod_warning(uuid):
+def _prod_warning(uuid):
     warnings.warn("product {} is not a recognised data\
     type and cannot be processed".format(uuid))
 
@@ -115,6 +141,11 @@ def add_S2_processed_to_inventory(uuid,new_file_name, inventory=None):
     gs_localmanager.add_new_products({uuid:new_entry})
     return None
 
+def _process_S2(product_entry):
+    """
+    takes a product dictionary and processes file with sen2cor
+    """
+    return filename
 # radar specific functions
 
 def add_S1_processed_to_inventory(uuid,new_file_name, inventory=None):
@@ -142,9 +173,11 @@ def add_S1_processed_to_inventory(uuid,new_file_name, inventory=None):
     gs_localmanager.add_new_products({uuid:new_entry})
     return None
 
-def get_UTM_zones(product_entry):
+# general geospatial functions
+
+def _get_UTM_zones(product_entry):
     """
-    Takes an product entry dictionary and identifies the grid UTM_zones
+    Takes a product entry dictionary and identifies the grid UTM_zones
     """
     UTMs = []
 
@@ -164,7 +197,7 @@ def get_UTM_zones(product_entry):
     else:
         raise NotImplementedError('Unknown satellite platform')
 
-def mgrs_to_UTMzone(square):
+def _mgrs_to_UTMzone(square):
     """
     Takes a MGRS grid square and returns zone and hemisphere
     """
@@ -177,24 +210,16 @@ def mgrs_to_UTMzone(square):
         return zone, 'S'
 
 
-def make_s1_graph_file(graph_file_template,inventory_entry):
+def _make_s1_graph_file(graph_file_template,inventory_entry):
     """
     Takes a graph file template and produces a new temp graph_file for
     a given S1 file
     """
-    pass
+    return filename
 
-
-# controller classes
-class processor(object):
-
+def _process_S1(product_entry):
     """
-    Major class for handling the processing pipelines
+    takes a product dictionary and processes file with S1 pipeline
     """
-
-    def __init__(self,pipelines=pipelines):
-
-        self.pipelines = pipelines
-
-    def process():
-        pass
+    grid_zones = _get_utm_zones(product_entry)
+    return filename
