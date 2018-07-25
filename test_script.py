@@ -13,22 +13,32 @@ import datetime
 
 # Test gs_downloader
 test_file = pathlib.Path('test_files/CB7_4SS_grid_1 _combi.shp') 
+start_season = datetime.date(2018, 5, 6)
+end_season = datetime.date(2018, 5, 7)
 
 s1_winterwheat_field = gs_downloader.ProductQueryParams()
-
-start_season = datetime.date(2015, 9, 1)
-end_season = datetime.date(2015, 9, 2)
 s1_winterwheat_field.acquisition_date_range(start_season, end_season)
 s1_winterwheat_field.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
 s1_winterwheat_field.coords_from_file(str(test_file),  # MK44 2EE grid 3
                                       '.shp',
                                       'BNG')
+s2_winterwheat_field = gs_downloader.ProductQueryParams()
+s2_winterwheat_field.acquisition_date_range(start_season, end_season)
+s2_winterwheat_field.product_details('S2', 'L2A', cloudcoverlimit=2)
+s2_winterwheat_field.coords_from_file(str(test_file),
+                                      '.shp',
+                                      'BNG')
+
 hub = gs_downloader.CopernicusHubConnection()
 totals1, s1products = hub.submit_query(s1_winterwheat_field)
-print(totals1)
+totals2, s2products = hub.submit_query(s2_winterwheat_field)
+
+gs_downloader.filter_overlaps(s2products, s2_winterwheat_field.ROI)
+hub.download_quicklooks(s2products)
+hub.download_products(s2products)
+hub.download_quicklooks(s1products)
 hub.download_products(s1products)
 
 # Test gs_localmanager
 gs_localmanager.check_integrity()
 product_inventory = gs_localmanager.get_product_inventory()
-print(len(product_inventory))

@@ -349,6 +349,8 @@ class CopernicusHubConnection:
         quicklooks_path.mkdir(exist_ok=True)
         existing_quicklooks = [x for x in list(quicklooks_path.glob('*'))]
 
+        print("Downloading quicklooks to {0}".format(QUICKLOOKS_PATH))
+
         for uuid, product in productlist.items():
             if product['identifier'] in existing_quicklooks:
                 pass  # skip if already downloaded
@@ -382,13 +384,13 @@ class CopernicusHubConnection:
         total_products = len(productlist)
         i = 1  # used for product count
 
-        for uuid, product in productlist.items():
+        for uuid, product in productlist.copy().items():
             if uuid in already_downloaded:  # skip files already downloaded
                 print("Product {0} with UUID {1} is already present in the"
-                      "download directory - skipping.".format(
+                      " download directory - skipping.".format(
                           product['filename'],
                           uuid))
-                productlist.remove(uuid, None)
+                productlist.pop(uuid, None)
                 continue
 
             print("Downloading product {0} / {1}.".format(i, total_products))
@@ -476,20 +478,6 @@ class CopernicusHubConnection:
         # convert from XML to dictionary format
         productlist = {}
 
-
-
-        def extract_coords(footprint):
-            # gets the coordslist from the polygon string supplied by ESA
-            coord_list = []
-            footprint = footprint[10:-2]
-            coords = footprint.split(',')
-            for coord in coords:
-                lon_coord = float(coord.split()[0])
-                lat_coord = float(coord.split()[1])
-                coord_list.append(lon_coord)
-                coord_list.append(lat_coord)
-            return coord_list
-
         for entry in entries:
             product = {}
             for field in entry:
@@ -501,18 +489,19 @@ class CopernicusHubConnection:
                         product['downloadlink'] = field.get('href')
                 if field.get('name') == 'uuid':
                     uuid = field.text
+                    product['origin'] = field.text
                     continue
                 if field.get('name') != 'None':  # contain redudancies
                     product[field.get('name')] = field.text
             # TODO: Implement 'utmzone' info
             product['userprocessed'] = False
             if 'tileid' not in product:  # get S1 prod. corresponding S2 tiles
-                if product['producttype'] == 'S2MSI2A':
-                    product['tileid'] = product['identifier'][39:44]
-                else:
-                    finder = gs_gridtest.grid_finder()
-                    coord_list = gs_gridtest.WKT_to_list(product['footprint'])
-                    product['tileid'] = finder.request(coord_list)
+                finder = gs_gridtest.grid_finder()
+                coord_list = gs_gridtest.WKT_to_list(product['footprint'])
+                # returns list of all S2 tiles the product intersects
+                # and the majority tile in format
+                # ([tile1, tile2, ... ], maj_tile)
+                product['tileid'] = finder.request(coord_list)
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
@@ -627,7 +616,7 @@ class CopernicusHubConnection:
             if parameters.proclevel == 'L1C':
                 term_join(field, 'S2MSI1C')
             if parameters.proclevel == 'L2A':
-                term_join(field, 'S2MSI2A OR S2MSI2Ap')
+                term_join(field, 'S2MSI2A')
 
         # Add the start and end row limits for the query
         query['start'] = str(start)
