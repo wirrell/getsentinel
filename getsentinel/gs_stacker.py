@@ -58,12 +58,21 @@ class Stacker():
         # holds the uuids and corresponding shape files within each product
         self.job_list = self._allocate_ROIs()
         # lists all the names of the shapefiles
-        self.stack_list = [name for name in self.ROIs]
+        self.stack_list = {name: None for name in self.ROIs}
         # temporary store for the layers before final combination
-        self._layerbank = {name: [] for name in self.stack_list}
+        self._layerbank = {name: {} for name in self.stack_list}
         self.band_list = False
-        self.start_date = False
-        self.end_date = False
+        self._generated = False
+
+    def __getitem__(self, key):
+
+        """Implements dict like functionality."""
+
+        if not self._generated:
+            print("Please call the run method first.")
+            return None
+
+        return self.stack_list[key]
 
     def set_bands(self, s1_band_list: list = [], s2_band_list: list = []):
 
@@ -104,7 +113,6 @@ class Stacker():
             date coherency, otherwise it will only have 3 entries.
         """
 
-        # TODO: implement date limits functionality
         # TODO: implement data coherency functionality
 
         platforms = [self.products[uuid]['platformname'] for uuid in
@@ -143,6 +151,81 @@ class Stacker():
                 # should only be one band file per band in Sentinel products
 
                 self._extract_data(band_files[0], uuid, band)
+
+        self._generate_stacks()
+
+    def _generate_stacks(self):
+
+        """Make the layers uniform and combine them into numpy array stacks."""
+
+        np.set_printoptions(threshold=np.nan)
+        for roi, layers in self._layerbank.items():
+            layers_ = [layer for date, layer in sorted(layers.items())]
+            info_ = [layer.info for date, layer in sorted(layers.items())]
+            transforms_ = [layer.transform for date, layer in
+                           sorted(layers.items())]
+            layers_ = self._pad_layers(layers_)
+            stack = np.stack(layers_, axis=0)
+            stack = InfoLayer(stack, info_, transforms_, roi)
+            self.stack_list[roi] = stack
+
+        self._generated = True
+
+    def _pad_layers(self, layers):
+
+        """Pads the layers with zeroes so they conform to a uniform shape."""
+
+        padded_layers = []
+
+        height_max = 0
+        width_max = 0
+        for layer in layers:
+            height, width = layer.shape
+            if height > height_max:
+                height_max = height
+            if width > width_max:
+                width_max = width
+
+        for layer in layers:
+            height, width = layer.shape
+            height_add = height_max - height
+            width_add = width_max - width
+
+            while width_add:
+                if width_add % 2 is 0:
+                    # pad right side of array
+                    layer = np.pad(layer,
+                                   ((0, 0), (0, 1)),
+                                   'constant',
+                                   constant_values=0)
+                    width_add = width_add - 1
+                    continue
+                # pad left side of array
+                layer = np.pad(layer,
+                               ((0, 0), (1, 0)),
+                               'constant',
+                               constant_values=0)
+                width_add = width_add - 1
+
+            while height_add:
+                if height_add % 2 is 0:
+                    # pad top of array
+                    layer = np.pad(layer,
+                                   ((1, 0), (0, 0)),
+                                   'constant',
+                                   constant_values=0)
+                    height_add = height_add - 1
+                    continue
+                # pad bottom of array
+                layer = np.pad(layer,
+                               ((0, 1), (0, 0)),
+                               'constant',
+                               constant_values=0)
+                height_add = height_add - 1
+
+            padded_layers.append(layer)
+
+        return padded_layers
 
     def _extract_data(self,
                       band_file: Path,
@@ -192,24 +275,32 @@ class Stacker():
         associated_ROIs = self.job_list[uuid]
 
         with rasterio.open(str(band_file), 'r') as raster:
-            dead_this_raster = 0
             for ROI in associated_ROIs:
                 mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
                 out_image, out_transform = rasterio.mask.mask(raster,
                                                               mask,
                                                               crop=True)
 
-                if np.count_nonzero(out_image) is 0:
+                if np.count_nonzero(out_image) is 0 or np.amax(out_image) < 10:
                     # The mask has fallen victim the the traversty that is ESA
                     # polygons being actually sligthly larger than the product
                     # data they represent. Ie. the ROI is in the dead zone!
                     continue
-            # NOTE: continue here, putting layers into layer lists and adding
-            # info to arrays. Consider storing layers in list with date strings
-            # which can be used to order them. Need to work out some way of
-            # ordering layers before combining them.
-            exit()
-                
+
+                product = self.products[uuid]
+                info = {'from': uuid,
+                        'platform': product['platformname'],
+                        'datetime': product['beginposition'],
+                        'band': band,
+                        'processing': product['producttype']}
+
+                if product['platformname'] == 'Sentinel-1':
+                    info['mode'] = product['sensoroperationalmode']
+
+                # out_image is 3D when ie. [1, X, Y] and we only need the 2D
+                layer = InfoLayer(out_image[0], info, out_transform)
+                date = product['beginposition']
+                self._layerbank[ROI][date] = layer
 
     def _allocate_ROIs(self):
 
@@ -284,20 +375,23 @@ class Stacker():
 
         self.ROIs = ROIs
 
-class InfoArray(np.ndarray):
-    
+
+class InfoLayer(np.ndarray):
+
     """Used to add an attribute to an existing numpy array.
-    from: 
+    adapted from:
         https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html
     """
 
-    def __new__(cls, input_array, info=None):
-        # Input array is an already formed ndarray instance
-        # We first cast to be our class type
+    def __new__(cls, input_array, info, transform, name=False):
         obj = np.asarray(input_array).view(cls)
         obj.info = info
+        obj.transform = transform
+        if name:
+            obj.name = name
         return obj
 
     def __array_finalize__(self, obj):
-        if obj is None: return
+        if obj is None:
+            return
         self.info = getattr(obj, 'info', None)
