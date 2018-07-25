@@ -191,9 +191,9 @@ def add_new_products(new_products: dict):
                                    " present in the product inventory."
                                    "".format(new_products[uuid]['identifier'],
                                              uuid))
-            uuid = get_new_uuid(uuid)
-        product_inventory[uuid] = new_products[uuid]
-        added_uuids.append(uuid)
+            new_uuid = get_new_uuid(uuid)
+        product_inventory[new_uuid] = new_products[uuid]
+        added_uuids.append(new_uuid)
 
     _save_product_inventory(product_inventory)
 

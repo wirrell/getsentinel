@@ -96,7 +96,7 @@ def add_S2_processed_to_inventory(uuid,new_file_name, inventory=None):
     """
     # get inventory if not passed to function
     if inventory == None:
-        inventory = gs_localmanager.get_product_inventory()
+        inventory = gs_localmanager._get_inventory()
 
     # retrieve specific entry
     new_entry = inventory[uuid]
@@ -119,9 +119,9 @@ def add_S1_processed_to_inventory(uuid,new_file_name, inventory=None):
     makes a new product entry dict and uses gs_localmanager
     to add to inventory
     """
-    # get inventory if not passed to function
+    # get inventory file if not passed to function
     if inventory == None:
-        inventory = gs_localmanager.get_product_inventory()
+        inventory = gs_localmanager._get_inventory()
 
     # retrieve specific entry
     new_entry = inventory[uuid]
@@ -149,7 +149,7 @@ def get_UTM_zones(product_entry):
     # accept the list of tile ids from a sentinel 1
     elif product_entry['platformname'] == 'Sentinel-1':
         for square in product_entry['tileid']:
-            UTMs.append(mgrs_to_UTM(square))
+            UTMs.append(mgrs_to_UTMzone(square))
         unique = []
         for z in UTMs:
             if unique.count(z) == 0:
@@ -158,7 +158,7 @@ def get_UTM_zones(product_entry):
     else:
         raise NotImplementedError('Unknown satellite platform')
 
-def mgrs_to_UTM(square):
+def mgrs_to_UTMzone(square):
     """
     Takes a MGRS grid square and returns zone and hemisphere
     """
