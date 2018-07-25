@@ -108,6 +108,9 @@ def add_S2_processed_to_inventory(uuid,new_file_name, inventory=None):
     # update new_file_name
     new_entry['filename'] = new_file_name
 
+    # update user processed flag
+    new_entry['userprocessed'] = True
+
     # inventorise
     gs_localmanager.add_new_products({uuid:new_entry})
     return None
@@ -131,6 +134,9 @@ def add_S1_processed_to_inventory(uuid,new_file_name, inventory=None):
 
     # update new_file_name
     new_entry['filename'] = new_file_name
+
+    # update user processed flag
+    new_entry['userprocessed'] = True
 
     # inventorise
     gs_localmanager.add_new_products({uuid:new_entry})
