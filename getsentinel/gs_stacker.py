@@ -1,19 +1,28 @@
-"""
-gs_stacker.py
+"""Extracts data from Sentinel products for given regions of interest.
 
-Postage stamp ROIs out of given rasters file in batch.
+Postage stamp ROIs out of given rasters file in batch. After processing the
+Stacker object acts as a dictionary from which numpy arrays containing all the
+multi-temporal data layers.
 
 Handles both Sentinel-1 and Sentinel-2 rasters over multiple time frames.
 
-NOTE: Currently only handles Sentinel-1 products.
+Note
+----
+Currently only handles Sentinel-1 products.
+
+Attributes
+----------
+S1_RASTER_PATH : str
+    Local path within a Sentinel-1 .SAFE file to the measurement rasters.
 
 
-TODO:
-    Implement S2 product handling.
-    Implement other band_list preferences in run()
-    Implement data coherency functionality
-    Speak to Joe about implemented geocode GDAL warp in the preprocessing
-    module.
+TODO
+----
+Implement S2 product handling.
+Implement other band_list preferences in `run` and `set_bands`
+Speak to Joe about implemented geocode GDAL warp in the preprocessing
+module.
+
 """
 
 from . import gs_config
@@ -34,18 +43,62 @@ S1_RASTER_PATH = '/measurement/'  # where .tiff files reside in S1 .SAFE
 
 
 class Stacker():
+    """Creates stacks of arrays from a product list and a group of shape files.
 
-    """
-    Takes a product list and a group of shape files and creates stacks of numpy
-    arrays that contain the raster data for each of the ROIs specified by
-    individual shape files.
+    Arrays contains the raster data each passed shapefile over Sentinel
+    products covering different dates/times.
+
+    Note
+    ----
+    The user does not need to concern themselves with checking that the
+    products passed contain data for for all the shapefiles. This class will
+    sort products to their corresponding shapefiles and filter out all null
+    data.
+
+    Parameters
+    ----------
+    product_list : dict
+        Contains the Sentinel products containing data relevant to the
+        area coverered by the passed shapefiles.
+    shape_files : list
+        A `list` of `str` containing the paths to all of the relevant
+        shapefiles.
+    start_date : datetime.date
+        The start of the time period used for data extraction. Any Sentinel
+        products passed to the `Stacker` but generated outside of this time
+        period will be excluded from the extraction process.
+    end_date : datetime.date
+        The end of the time period used for data extraction. Inclusive.
+
+    Attributes
+    ----------
+    products : dict
+        Contains a copy of `product_list` passed to the object.
+    shape_files : list
+        Contains a copy of `shape_files` passed to the object.
+    start_date : datetime.date
+        A copy of `start_date` passed to the object.
+    end_date : datetime.date
+        A copy of the `end_date` passed to the object.
+    job_list : dict
+        Contains keys of all the uuids of products passed to the object, with
+        their values being the shapefiles that are within the boundaries of
+        each product.
+    stack_list : dict
+        After the `run` method is called, this `dict` is populated with keys
+        that are the names of the shapefiles passed, with their values being
+        the corresponding processed `numpy` arrays.
+    band_list : list
+        `list` of `str` containing the product bands that are to be extracted
+        from the products.
+
     """
 
     def __init__(self,
-                 product_list: dict,
-                 shape_files: list,
-                 start_date: datetime.date,
-                 end_date: datetime.date):
+                 product_list,
+                 shape_files,
+                 start_date,
+                 end_date):
 
         self.products = product_list
         self.shape_files = shape_files
@@ -65,7 +118,6 @@ class Stacker():
         self._generated = False
 
     def __getitem__(self, key):
-
         """Implements dict like functionality."""
 
         if not self._generated:
@@ -74,13 +126,34 @@ class Stacker():
 
         return self.stack_list[key]
 
-    def set_bands(self, s1_band_list: list = [], s2_band_list: list = []):
+    def set_bands(self, s1_band_list=[], s2_band_list=[]):
+        """Sets the attribute `band_list` to the passed bands.
 
-        """
-        band_list is a list of strings containing the bands the user desires to
-        be extracted from the product. For S1 GRD products there are: vv, vh
+        Valid bands for S1 GRD products there are: 'vv', 'vh'.
 
-        Required form : ['band1', 'band2', ... ]
+        Note
+        ----
+        Currently only supports S1 GRD products
+
+        Parameters
+        ----------
+        s1_band_list : list
+            `list` of `str` containing the S1 bands the user wants extract from
+            the S1 products passed to `Stacker`.
+            Required form : ['band1', 'band2', ... ]
+        s2_band_list : list
+            `list` of `str` containing the S2 bands the user wants extract from
+            the S2 products passed to `Stacker`.
+            Required form : ['band1', 'band2', ... ]
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the band strings passed are not valid bands.
 
         """
 
@@ -100,20 +173,28 @@ class Stacker():
 
         self.band_list = [s1_band_list, s2_band_list]
 
-    def run(self, date_coherency: bool = False):
+    def run(self):
+        """Runs the data layer extraction and stacking process.
+
+        Note
+        ----
+        Currently only supports Sentinel-1 products.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        NotImplementedError
+            If S2 products have been passed to `Stacker`.
+        ValueError
+            If `set_bands` has not been called before calling `run`.
+        ValueError
+            If any products other than S1 or S2 products are passed to
+            `Stacker`.
 
         """
-        Runs the stacking process.
-
-
-        NOTE: If date_coherency = True, the follow format occurs:
-            If shapefileA has products for day1, day2, day3, and day4 and
-            shapefileB has products for only day1, day2, and day4 then
-            shapefileB will be have any zeroes entry in its stack for day3 for
-            date coherency, otherwise it will only have 3 entries.
-        """
-
-        # TODO: implement data coherency functionality
 
         platforms = [self.products[uuid]['platformname'] for uuid in
                      self.products]
@@ -121,8 +202,6 @@ class Stacker():
             if platform != 'Sentinel-1':
                 raise NotImplementedError("Currently only supports Sentinel-1"
                                           " products.")
-        if date_coherency:
-            raise NotImplementedError("Data coherency not yet implemented.")
         if not self.band_list:
             raise ValueError("Please set the band list via"
                              " .set_bands(band_list) before running.")
@@ -155,7 +234,6 @@ class Stacker():
         self._generate_stacks()
 
     def _generate_stacks(self):
-
         """Make the layers uniform and combine them into numpy array stacks."""
 
         np.set_printoptions(threshold=np.nan)
@@ -172,7 +250,6 @@ class Stacker():
         self._generated = True
 
     def _pad_layers(self, layers):
-
         """Pads the layers with zeroes so they conform to a uniform shape."""
 
         padded_layers = []
@@ -231,7 +308,6 @@ class Stacker():
                       band_file: Path,
                       uuid: str,
                       band: str):
-
         """
         Checks the joblist to see what ROIs need to be postage stamped out of
         the given uuid and extracts them using rasterio.mask.
@@ -303,7 +379,6 @@ class Stacker():
                 self._layerbank[ROI][date] = layer
 
     def _allocate_ROIs(self):
-
         """
         Checks product boundaries against ROI areas and allocates ROIs to
         products for stamping.
@@ -321,7 +396,6 @@ class Stacker():
         return job_list
 
     def _gen_product_shapes(self, product_list: dict):
-
         """Loads shapely objects from product WKT footprints."""
 
         product_boundaries = {}  # stores the shapely files use for allocating
@@ -338,7 +412,6 @@ class Stacker():
         self.product_boundaries = product_boundaries
 
     def _gen_ROI_shapes(self, shape_files):
-
         """Loads shapely objects from given shape files."""
 
         # set WGS84 spatial ref
@@ -377,10 +450,33 @@ class Stacker():
 
 
 class InfoLayer(np.ndarray):
-
     """Used to add an attribute to an existing numpy array.
     adapted from:
         https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html
+
+    Parameters
+    ----------
+    input_array : numpy.ndarray
+        An existing array that is to be converted to an `InfoLayer`.
+    info : list, str
+        `list` of `str` or just `str` that contains info on each layer such as
+        UUID of origin, platform, date of capture, band, and processing level.
+    tranform : affline.Affline
+        the out_transform output from the `mask` function of the `rasterio`
+        library.
+    name : str, optional
+        The name of the InfoLayer. Used in the final array stacks to name the
+        stacks with the `str` of their corresponding shapefile names.
+
+    Attributes
+    ----------
+    info : list, str
+        Copy of parameter `info`.
+    tranform : affline.Affline
+        Copy of parameter `transform`.
+    name : str, optional
+        Copy of paramter `name`.
+
     """
 
     def __new__(cls, input_array, info, transform, name=False):
