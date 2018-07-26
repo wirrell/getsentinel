@@ -1,8 +1,21 @@
-"""
-Downloaded product inventory manager.
+"""Downloaded product inventory manager.
 
-    TODO:
-        Check support for manual addition of S1 files to download directory.
+This module provides an up-to-date product inventory and checks the integrity
+of any saved inventory against the actual contents of the DATA_PATH provided by
+the gs_config.
+
+Example
+-------
+
+current_inventory = gs_localmanager.get_product_inventory()
+
+new_downloaded_products = {uuid: product, uuid: product}
+
+gs_localmanager.add_new_products(new_downloaded_products)
+
+TODO
+----
+Check support for manual addition of S1 files to download directory.
 """
 
 import json
@@ -13,8 +26,17 @@ from . import gs_downloader
 
 
 def check_integrity():
+    """Checks the integrity of the current inventory.
+    
+    Adds any products that were manually added to the DATA_PATH by the user
+    since the last check. Removes any missing products.
 
-    """Checks the integrity of the current inventory."""
+    Returns
+    -------
+    bool
+        True if successful, will throw an error otherwise.
+    
+    """
 
     data_path = Path(DATA_PATH)
     data_path.mkdir(exist_ok=True)
@@ -34,7 +56,6 @@ def check_integrity():
         product_inventory.pop(uuid, None)  # product that no longer exist
 
     def handle_user_prd(filename):
-
         """
         Retrieves info for user processed files from both the ESA hub and
         any included xml info file.
@@ -134,7 +155,6 @@ def check_integrity():
 
 
 def _get_inventory():
-
     """"Retrieves the product inventory from .json file."""
 
     product_inventory_path = Path(DATA_PATH + '/product_inventory.json')
@@ -149,8 +169,15 @@ def _get_inventory():
 
 
 def get_product_inventory():
+    """Returns the product inventory as a dictionary keyed by UUIDs.
 
-    """Returns the product inventory as a dictionary of UUIDs."""
+    Returns
+    -------
+    product_inventory : dict
+        Dictionary of products that are in the DATA_PATH directory, keyed by
+        their UUIDs.
+
+    """
 
     check_integrity()
 
@@ -160,7 +187,6 @@ def get_product_inventory():
 
 
 def _save_product_inventory(product_inventory):
-
     """Writes the updated product inventory to the associated .json file."""
 
     product_inventory_path = Path(DATA_PATH + '/product_inventory.json')
@@ -170,8 +196,19 @@ def _save_product_inventory(product_inventory):
 
 
 def add_new_products(new_products: dict):
-
-    """Adds new products to the inventory."""
+    """Adds new products to the inventory.
+    
+    Note
+    ----
+    Used by the gs_downloader to log newly downloaded products. This function
+    does not need to be called when you are downloading products via
+    gs_downloader they are added to the inventory automatically.
+    
+    Returns
+    -------
+    added_uuids : list
+        List of strings containing the UUIDs of the products that have been
+        successfully added to the inventory."""
 
     def get_new_uuid(uuid):
         # Produces a new uuid
