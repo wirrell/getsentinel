@@ -73,7 +73,11 @@ class Stacker():
     Attributes
     ----------
     products : dict
-        Contains a copy of `product_list` passed to the object.
+        Filtered copy of `product_list` passed to the object containing only
+        products generated between `start_date` and `end_date`.
+    product_boundaries : dict
+        Contains `shapely.geometry.Polygon` objects describing the boundaries
+        of each of the products in `products`.
     shape_files : list
         Contains a copy of `shape_files` passed to the object.
     start_date : datetime.date
@@ -100,12 +104,12 @@ class Stacker():
                  start_date,
                  end_date):
 
-        self.products = product_list
         self.shape_files = shape_files
         self.start_date = start_date
         self.end_date = end_date
-        # generates the shapely objects for the products
-        self._gen_product_shapes(product_list)
+        # filters the product list and generates the shapely objects for the products
+        self.products, self.product_boundaries = self._gen_product_shapes(
+            product_list)
         # generates the shapely objects for the ROIs
         self._gen_ROI_shapes(shape_files)
         # holds the uuids and corresponding shape files within each product
@@ -206,8 +210,7 @@ class Stacker():
             raise ValueError("Please set the band list via"
                              " .set_bands(band_list) before running.")
 
-        for uuid in self.product_boundaries:
-            product = self.products[uuid]
+        for uuid, product in self.products.items():
             # get the filepath for the product files in .SAFE
             rasters_path = Path(gs_config.DATA_PATH + product['filename'] +
                                 S1_RASTER_PATH)
@@ -237,7 +240,6 @@ class Stacker():
     def _generate_stacks(self):
         """Make the layers uniform and combine them into numpy array stacks."""
 
-        np.set_printoptions(threshold=np.nan)
         for roi, layers in self._layerbank.items():
             layers_ = [layer for date, layer in sorted(layers.items())]
             info_ = [layer.info for date, layer in sorted(layers.items())]
@@ -400,6 +402,7 @@ class Stacker():
         """Loads shapely objects from product WKT footprints."""
 
         product_boundaries = {}  # stores the shapely files use for allocating
+        filtered_products = {}
 
         # ESA product footprints are in WGS84 (epsg: 4326)
         for uuid, product in product_list.items():
@@ -409,8 +412,10 @@ class Stacker():
             if self.start_date <= product_start <= self.end_date:
                 product_shape = shapely.wkt.loads(product['footprint'])
                 product_boundaries[uuid] = product_shape
+                filtered_products[uuid] = product
 
-        self.product_boundaries = product_boundaries
+
+        return filtered_products, product_boundaries
 
     def _gen_ROI_shapes(self, shape_files):
         """Loads shapely objects from given shape files."""
