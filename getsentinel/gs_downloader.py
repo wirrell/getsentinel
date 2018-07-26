@@ -557,6 +557,7 @@ class CopernicusHubConnection:
                                                      verify)
             zip_ref = zipfile.ZipFile(filename, 'r')
             extract_to = downloadpath
+            print("Extracting the .zip file.")
             zip_ref.extractall(extract_to)
             zip_ref.close()
             # remove leftover .zip file

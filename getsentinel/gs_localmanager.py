@@ -15,7 +15,7 @@ gs_localmanager.add_new_products(new_downloaded_products)
 
 TODO
 ----
-Check support for manual addition of S1 files to download directory.
+Add extra support for manual addition of S1 files to download directory.
 """
 
 import json
@@ -69,46 +69,48 @@ def check_integrity():
                                "in the ESA database for filename: \n"
                                " {0} in the {1} directory."
                                "".format(filename, DATA_PATH))
-        for uuid in product:
-            product_info = product[uuid]
+        uuid = product.keys()[0]
+        product_info = product[uuid]
         product_info['userprocessed'] = True
 
-        file_info = list(Path(DATA_PATH + '/' + filename).glob('*MTD*'))
-        # NOTE: this relies on the xml info file structure remaining constant
-        with open(file_info[0], 'r') as read_in:
-            file_info_tree = ET.parse(read_in)
-            root = file_info_tree.getroot()
-            product_info['identifier'] = filename[:-5]
-            required_tags = ['PROCESSING_LEVEL',
-                             'PRODUCT_TYPE',
-                             'PROCESSING_BASELINE']
-            available_tags = []
-            for child in root[0][0]:
-                available_tags.append(child.tag)
-            for req_tag in required_tags:
-                if req_tag not in available_tags:
-                    raise RuntimeError("Manifest at location {0} does not"
-                                       " conform to expected structure."
-                                       "".format(file_info[0]))
-            for child in root[0][0]:
-                if child.tag == 'PROCESSING_LEVEL':
-                    product_info['processinglevel'] = child.text
-                if child.tag == 'PRODUCT_TYPE':
-                    product_info['producttype'] = child.text
-                if child.tag == 'PROCESSING_BASELINE':
-                    product_info['processingbaseline'] = child.text
-                if child.tag == 'L2A_Product_Organisation':
-                    if 'tileid' not in product_info:
-                        # hack to pull out tileid
-                        tileid = child[0][0][0].text[-13:-8]
-                        print(tileid)
-                        product_info['tileid'] = tileid
-            product_info['downloadlink'] = None
-            product_info['filename'] = filename
+        # TODO: write Sentinel-1 extra product info handling
 
-        for uuid in product:
-            newid = uuid + '-user'
-        product[newid] = product.pop(uuid)
+        if product_info['platform'] == 'Sentinel-2':
+            file_info = list(Path(DATA_PATH + '/' + filename).glob('*MTD*'))
+            # NOTE: this relies on the xml info file structure remaining constant
+            with open(file_info[0], 'r') as read_in:
+                file_info_tree = ET.parse(read_in)
+                root = file_info_tree.getroot()
+                product_info['identifier'] = filename[:-5]
+                required_tags = ['PROCESSING_LEVEL',
+                                 'PRODUCT_TYPE',
+                                 'PROCESSING_BASELINE']
+                available_tags = []
+                for child in root[0][0]:
+                    available_tags.append(child.tag)
+                for req_tag in required_tags:
+                    if req_tag not in available_tags:
+                        raise RuntimeError("Manifest at location {0} does not"
+                                           " conform to expected structure."
+                                           "".format(file_info[0]))
+                for child in root[0][0]:
+                    if child.tag == 'PROCESSING_LEVEL':
+                        product_info['processinglevel'] = child.text
+                    if child.tag == 'PRODUCT_TYPE':
+                        product_info['producttype'] = child.text
+                    if child.tag == 'PROCESSING_BASELINE':
+                        product_info['processingbaseline'] = child.text
+                    if child.tag == 'L2A_Product_Organisation':
+                        if 'tileid' not in product_info:
+                            # hack to pull out tileid
+                            tileid = child[0][0][0].text[-13:-8]
+                            print(tileid)
+                            product_info['tileid'] = tileid
+        product_info['downloadlink'] = None
+        product_info['filename'] = filename
+
+        newid = uuid + '-user'
+        product[newid] = product_info
 
         return product
 

@@ -206,7 +206,8 @@ class Stacker():
             raise ValueError("Please set the band list via"
                              " .set_bands(band_list) before running.")
 
-        for uuid, product in self.products.items():
+        for uuid in self.product_boundaries:
+            product = self.products[uuid]
             # get the filepath for the product files in .SAFE
             rasters_path = Path(gs_config.DATA_PATH + product['filename'] +
                                 S1_RASTER_PATH)
