@@ -246,12 +246,15 @@ def add_new_products(new_products: dict):
     added_uuids = []
 
     for uuid in new_products:
+        new_uuid = uuid
         if uuid in product_inventory:
             if product_inventory[uuid] == new_products[uuid]:
-                raise RuntimeError("Product {0} with UUID {1} is already"
-                                   " present in the product inventory."
-                                   "".format(new_products[uuid]['identifier'],
+                print("Product {0} with UUID {1} is already"
+                      " present in the product inventory."
+                      " - Skipping"
+                      "".format(new_products[uuid]['identifier'],
                                              uuid))
+                continue
             new_uuid = get_new_uuid(uuid)
         product_inventory[new_uuid] = new_products[uuid]
         added_uuids.append(new_uuid)
