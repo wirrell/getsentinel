@@ -11,5 +11,8 @@ Requirements: Python 3.6
               shapely
               pyshp
               convertbng
+              rasterio
+              osgeo
+              numpy
 
 

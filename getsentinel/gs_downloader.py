@@ -1,18 +1,41 @@
-"""
+"""getsentinel gs_downloader.py
+
 Script to locate and auto-download products from Copernicus Open Access Hub
 which contains ESA Sentinel Satellite products. https://scihub.copernicus.eu/
+Queries and downloads are based on dates, coordinates, and product type.
 
-TODO:
-    Implemented load in of ROI coordinates from geojson files.
-    Speak with Joe about issue with gs_gridtest.grid_under.request method which
-    returns many tiles when passed the boundary coordinates of a singe S2 tile.
-    Speak with Joe about possibly changing input format of the above method to
-    ((lon, lat), (lon, lat), ... ) instead of (lon1, lat1, lon2, lat2, ... ).
-    Investigate use of shapely files to store coords in params, could make it
-    easier to pass WKT request for ROI to server.
+Example
+-------
+Basic usage example::
 
-George Worrall - University of Manchester 2018
+    import datetime
+    from getsentinel import gs_downloader
+
+    shape_file = 'path/to/shapefile.shp'
+    start_date = datetime.date(2018, 1, 1)
+    end_date = datetime.date(2018, 6, 1)
+
+    # initialise the query object
+    query = gs_downloader.ProductQueryParams()
+    query.acquisition_date_range(start_date, end_date)
+    query.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
+    query.coords_from_file(shape_file, '.shp', 'BNG')
+
+    # initialise the hub connection
+    hub = gs_downloader.CopernicusHubConnection()
+    total_products, product_list = hub.submit_query(s1_winterwheat_field)
+
+    # optionally filter overlapping products from a given region
+    # query.ROI contains a polygon generated from the input coordinates
+    product_list = gs_downloader.filter_overlaps(product_list, query.ROI)
+
+    # optinally download the corresponding product quicklooks
+    hub.download_quicklooks(product_list)
+    hub.download_products(product_list)
+
 """
+
+# TODO: Implement load in of ROI coordinates from geojson files.
 
 import datetime
 import xml.etree.ElementTree as ET
@@ -22,32 +45,71 @@ import pathlib
 import zipfile
 import requests
 from clint.textui import progress
-from convertbng.util import convert_lonlat
 import shapefile
 from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
+from osgeo import ogr, osr
 from . import gs_localmanager
 from . import gs_gridtest
 from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
 
 class ProductQueryParams:
+    """Holds the query parameters use in an ESA hub query.
+
+    Attributes
+    ----------
+    dates : tuple
+        Contains the acquisition start and end datetime.date objects that
+        define the query search time period.
+    coordinates : list
+        A list containing the coordinates of the boundary of the region of
+        interest (ROI).
+    tiles : tuple
+        Contains a list of the ESA defined Sentinel-2 tiles that the ROI
+        traverses and the tile which the ROI overlaps the most with in the
+        format (overlapped_tiles, majority_tile).
+    ROI : shapely.geometry.Polygon
+        A shapely object defining the border of the region of interst using in
+        the query.
+    satellite : str
+        Defines which Sentinel satellite the query is for, e.g. 'S1', 'S2'
+    proclevel : str
+        The processing level of the products desired from the query
+    details : dict
+        Contains optional parameters for the query
+
+    """
 
     def __init__(self):
 
         self.dates = False
-        self.coords = False
+        self.coordinates = False
 
-    def acquisition_date_range(self,
-                               acqstart: datetime.date,
-                               acqend=False):
-        """
-        Sets the product search acquisition date range.
+    def acquisition_date_range(self, acqstart, acqend=False):
+        """Set the date range for the query.
 
-        Note: This is used to specify the Sensing Start Time search criteria.
-              If no end date is specific, the 24 hour period for the given
-              start date is used. Any specified end date is considered
-              inclusive.
+        This method will raise an error if a anything but datetime.date objects
+        are passed to it or if acqstart is a date after acqend.
+
+        Note
+        ----
+        This is used to specify the Sensing Start Time search criteria.
+        If no end date is specific, the 24 hour period for the given
+        start date is used. Any specified end date is considered
+        inclusive.
+
+        Parameters
+        ----------
+        acqstart : datetime.date
+            The start date for the date range of the ESA query
+        acqend : datetime.date, optional
+            The end date for the date range of the ESA query
+
+        Returns
+        ------
+        None
+
         """
 
         if type(acqstart) is not datetime.date:
@@ -60,65 +122,91 @@ class ProductQueryParams:
             raise ValueError("The end acquisition date must be after the "
                              "beginning acquisition date.")
 
-        self.dates = [acqstart, acqend]
+        self.dates = (acqstart, acqend)
 
-    def coords_from_file(self,
-                         filepath: str,
-                         filetype: str,
-                         coordsystem: str = 'WGS'):
+    def coords_from_file(self, filepath):
+        """Loads in the coordinates of a region of interest from a shapefile.
 
-        """
-        Loads in the coordinates of a Region Of Interest (ROI) from a shape
-        file or geojson file. Uses shapely module to get a polygon which
-        encompasses all of the shapes containined within the shape file.
-        Suports WGS87 and BNG coordinate formats.
+        Uses the osgeo module to extract the coordinate reference system from
+        the shapefile and reprojects it to WGS84.
+
+        Note
+        ----
+        Only shapefiles are currently supported.
+
+        Parameters
+        ----------
+        filepath : str
+            The path to the shapefile.
+
+        Returns
+        -------
+        None
+
         """
 
         # TODO: Implement reading in of coords from geojson files.
 
-        if filetype != '.shp':
+        if pathlib.Path(filepath).suffix != '.shp':
             raise NotImplementedError('Currently only .shp files are'
                                       'supported.')
 
-        if coordsystem not in ['WGS', 'BNG']:
-            raise NotImplementedError('Currently only supports WGS and BNG'
-                                      'format.')
+        # set WGS84 spatial ref
+        wgs84 = osr.SpatialReference()
+        wgs84.ImportFromEPSG(4326)
 
-        lon_coords = []
-        lat_coords = []
+        shp = ogr.Open(filepath)
+        layer = shp.GetLayer()
+        shp_crs = layer.GetSpatialRef()
+        x_coords = []
+        y_coords = []
         shp = shapefile.Reader(filepath)
         for shape in shp.shapes():  # extract all points from all shapes
             for point in shape.points:  # in the file
-                lon_coords.append(point[0])
-                lat_coords.append(point[1])
-        if coordsystem == 'BNG':  # convert to WGS
-            wgs_list = convert_lonlat(lon_coords, lat_coords)
-            lon_coords = wgs_list[0]
-            lat_coords = wgs_list[1]
+                x_coords.append(point[0])
+                y_coords.append(point[1])
+        coords = list(zip(x_coords, y_coords))
+        m = MultiPoint(coords)  # import into shapely
+        shape_extents = m.convex_hull  # gets polygon that encomps all points
+        if shp_crs != wgs84:  # if already WGS84 - skip
+            transform = osr.CoordinateTransformation(shp_crs, wgs84)
+            # now reproject in ogr
+            shape_ = ogr.CreateGeometryFromWkt(shape_extents.wkt)
+            shape_.Transform(transform)
+            # back to shapely for easy coord extraction
+            shape_extents = loads(shape_.ExportToWkt())
+        coords = list(shape_extents.exterior.coords)
 
-        coords = list(zip(lon_coords, lat_coords))
+        self.set_coordinates(coords)
 
-        m = MultiPoint(coords)  # imported from shapely module
-        extents = m.convex_hull  # gets small polygon that encomps all points
+    def set_coordinates(self, coordlist):
+        """Stores the passed coordinates and generates ROI boundary polygon.
 
-        coords = list(extents.exterior.coords)
+        Stores the passed coordinates list and generates a shapely object
+        describing the region of interest. Also uses the gs_gridtest module to
+        find the corresponding ESA defined Sentinel-2 product tiles that the
+        ROI overlaps.
 
-        self.coordinates(coords)
-
-    def coordinates(self, coordlist: list):
-
-        """
-        Converts the given co-ordinates lists to an MGRS 100km Grid Square
-        ID. If the co-ordinates traverse square boundaries, all relevant IDs
-        are saved. Co-ordinates are also stored for later retreived product
-        area coverage checking.
-
+        Note
+        ----
         coordlist must be in the format [(lon1, lat1), (lon2, lat2), ... ]
         First and last co-ordinates given in coordlist must be the same to
         complete the described area.
+
+        Parameters
+        ----------
+        coordlist : list
+            List containing the coordinates describing the boundary of the
+            region of interest.
+
+        Returns
+        -------
+        None
+
         """
 
         if type(coordlist) is not list or len(coordlist[0]) is not 2:
+            print(self.coordinates.__doc__)
             raise TypeError("You must follow the coordlist format "
                             "requirements.")
 
@@ -142,39 +230,53 @@ class ProductQueryParams:
         tile_list = finder.request(coords)
 
         self.tiles = tile_list
-        self.coords = coords
+        self.coordinates = coords
         self.ROI = ROI
 
-    def product_details(self, sat: str,
+    def product_details(self,
+                        sat,
                         proclevel=False,
                         producttype=False,
                         mode=False,
                         polarisation=False,
                         resolution=False,
                         cloudcoverlimit=False):
+        """Sets product search the satellite type and details.
 
-        """
-        Sets product search the satellite type.
-        Current satellites supported: S1, S2.
-        Current product type supported for S1: RAW, SLC, GRD, OCN
-        Current S1 modes identifiers supported: SM, IW, EW, WV
-        Current S1 resolutions supported: F, H, M
-        Current S1 polarisations supported: HH, VV, HV, VH, HH HV, VV VH
-        Current S1 processing levels supported: L0, L1, L2, ALL
-        Current S2 processing levels supported: L1C, L2A, BEST, ALL
-        Cloud cover limit: integer threshold above which S2 products
-        which higher than threshold cloud coverage will be excluded from the
-        search.
-
-        Note: BEST searches for the highest level processed product from
-        available Sentinel-2 data for the given co-ordinates.
-
-        Note: Some combinations will always produce no results, eg. OCN
-        products do not have resolutions options and so an SLC type search with
-        parameters will return 0 results.
-        If in doubt, broaden the parameters and always consult the docs.
-
+        Note
+        ----
+        Some combinations will always produce no results, eg. GRD products do
+        note have 'HH' polarisations (as of 25th July 2018) and so queries
+        using GRD and HH with return 0 results.
+        If in doubt, broaden the parameters and always consult the ESA docs.
         See https://sentinel.esa.int/web/sentinel/user-guides for reference.
+
+        Parameters
+        ----------
+        sat : str
+            Current satellites supported: 'S1', 'S2'
+        proclevel : str, optional
+            Current S1 processing levels supported: 'L0', 'L1', 'L2', 'ALL'
+            Current S2 processing levels supported: 'L1C', 'L2A', 'BEST', 'ALL'
+            'BEST' searches for the highest level processed product from
+            available Sentinel-2 data for the given co-ordinates.
+        producttype : str, optional
+            Current product type supported for S1: 'RAW', 'SLC', 'GRD', 'OCN'
+            Not supported for S2
+        mode : str, optional
+            Current S1 modes identifiers supported: 'SM', 'IW', 'EW', 'WV'
+            Not supported for S2
+        polarisation : str, optional
+            Current S1 polarisations supported: 'HH', 'VV', 'HV', 'VH',
+            'HH HV', 'VV VH'
+            Not supported for S2
+        resolution : str, optional
+            Current S1 resolutions supported: F, H, M
+            Not supported for S2
+        cloudcoverlimit : int, optional
+            Not supported for S1
+            Integer threshold, products with percentage cloud cover higher than
+            the threshold with be excluded from the query results.
 
         """
 
@@ -227,10 +329,15 @@ class ProductQueryParams:
 
 
 class CopernicusHubConnection:
+    """Handles queries and product downloads to and from the ESA SciHub.
 
-    """
-    Class holder for ESA username and password which hosts query and download
-    methods that interact directly with the ESA Copernicus SciHub.
+    Attributes
+    ----------
+    username : str
+        The user's ESA account username.
+    password : str
+        The user's ESA account password.
+
     """
 
     def __init__(self):
@@ -239,11 +346,26 @@ class CopernicusHubConnection:
         self.password = ESA_PASSWORD
 
     def raw_query(self, query):
+        """Queries the ESA SciHub with a pre-formatted query.
 
-        """
-        Handles submission of a raw formatted query. Used by the
-        gs_localmanager to look up the product details for products manually
-        added to the download directory.
+        Note
+        ----
+        This is mainly used by the gs_localmanager module and should not
+        generally be used for queries. Use the submit_query method instead.
+
+        Parameters
+        ----------
+        query : str
+            Pre-forammted search query string.
+
+        Returns
+        -------
+        total_results : int
+            Number of results returned from the query
+        product_list : dict
+            Contains all the products returned from the query, keyed by their
+            product UUID
+
         """
 
         url = 'https://scihub.copernicus.eu/dhus/search?q=' + query
@@ -254,18 +376,34 @@ class CopernicusHubConnection:
 
         return total_results, product_list
 
-    def submit_query(self, parameters: ProductQueryParams):
+    def submit_query(self, parameters):
+        """Formats and submits a query to the ESA scihub via requests.
 
-        """
-        Formats and submits a query to the ESA scihub via the requests library.
+        Note
+        ----
+        The working of this function relies heavily on the format of the XML
+        returned by the ESA remaining constant.
         Returns the number of results and a dict contain the results UUIDs and
         information.
+
+        Parameters
+        ----------
+        parameters : :obj:`ProductQueryParams`
+
+        Returns
+        -------
+        num_results : int
+            Number of results returned from the query
+        product_list : dict
+            Contains all the products returned from the query, keyed by their
+            product UUID
+
         """
 
         if not parameters.dates:
             raise RuntimeError(" Please set the date in the product search"
                                " parameters before submitting a query.")
-        if not parameters.coords:
+        if not parameters.coordinates:
             raise RuntimeError(" Please set the co-ordinates of the product"
                                " search parameters before submitting a query.")
 
@@ -305,7 +443,7 @@ class CopernicusHubConnection:
         # this number is used to define how far we need to iterate through
         # the search pages (ESA enforces a limit of 100 results per page)
         total_results = int(response.findall('{http://a9.com/-/spec/opensearch'
-                                         '/1.1/}totalResults')[0].text)
+                                             '/1.1/}totalResults')[0].text)
 
         # while the number of results processed is less than the current page
         # index + the amount of results on the page
@@ -317,7 +455,7 @@ class CopernicusHubConnection:
             # send the rebuild query
             send_query(query)
             results, products = self._handle_response(response,
-                                                          procfilter)
+                                                      procfilter)
             num_results = num_results + results
             product_list = {**product_list, **products}
             print("Paging through results, at index {0} / {1}"
@@ -331,18 +469,28 @@ class CopernicusHubConnection:
 
         return num_results, product_list
 
-    def download_quicklooks(self,
-                            productlist: dict,
-                            downloadpath: str = QUICKLOOKS_PATH):
+    def download_quicklooks(self, productlist, downloadpath=QUICKLOOKS_PATH):
+        """Downloads the quicklooks of  products to a specified directory.
 
-        """
-        Downloads the quicklooks of the retrieved products to a specified
-        directory for the user to inspect manually before downloading the
-        full product list, if they so wish.
-
-        Note: If no quicklook is available for a product, HTML status code
+        Note
+        ----
+        If no quicklook is available for a product, HTML status code
         500 is returned. In this case, the ESA placeholder 'No Quicklook'
         image is downloaded.
+
+        Parameters
+        ----------
+        product_list : dict
+            Contains all the products whose quicklooks will be downlaoded,
+            keyed by their product UUID
+        downloadpath : str, optional
+            Path to the directory where the quicklooks should be downloaded.
+            Default is the QUICKLOOKS_PATH default from gs_config.
+
+        Returns
+        -------
+        None
+
         """
 
         quicklooks_path = pathlib.Path(downloadpath)
@@ -369,15 +517,24 @@ class CopernicusHubConnection:
                         handle.write(chunk)
 
     def download_products(self,
-                          productlist: dict,
-                          downloadpath: str = DATA_PATH,
-                          verify: bool = False):
+                          productlist,
+                          verify=False):
+        """Downloads the products product_list to the downloadpath directory.
 
-        """
-        Downloads the products provided in the product list and verifies all
-        downloads using MD5 checksum if verify = True.
+        Parameters
+        ----------
+        productlist : dict
+            Contains all the product returned from the query, keyed by their
+            product UUID
+        verify : bool
+            If true, downloads are checked using MD5 checksum
+
+        Returns
+        -------
+        None
         """
 
+        downloadpath = DATA_PATH  # imported from gs_config
         product_inventory = gs_localmanager.get_product_inventory()
         already_downloaded = list(product_inventory.keys())
 
@@ -391,6 +548,7 @@ class CopernicusHubConnection:
                           product['filename'],
                           uuid))
                 productlist.pop(uuid, None)
+                i = i + 1
                 continue
 
             print("Downloading product {0} / {1}.".format(i, total_products))
@@ -399,24 +557,21 @@ class CopernicusHubConnection:
                                                      verify)
             zip_ref = zipfile.ZipFile(filename, 'r')
             extract_to = downloadpath
+            print("Extracting the .zip file.")
             zip_ref.extractall(extract_to)
             zip_ref.close()
-
+            # remove leftover .zip file
+            pathlib.Path(filename).unlink()
+            # add products iteratively so that if process crashes at any point,
+            # earlier products downloaded in the chain will be present in the
+            # inventory.
+            gs_localmanager.add_new_products({uuid: product})
             i = i + 1
-
-        data_path = pathlib.Path(DATA_PATH)
-        # collect all the leftover .zip files
-        zip_files = [x for x in list(data_path.glob('*.zip'))]
-        for zip_file in zip_files:
-            zip_file.unlink()
-
-        gs_localmanager.add_new_products(productlist)
 
     def _download_single_product(self,
                                  uuid: str,
                                  downloadpath: str,
                                  verify: bool = False):
-
         """
         Downloads a single product from its uuid and verifies the download
         using MD5 checksum if verify = True.
@@ -466,7 +621,6 @@ class CopernicusHubConnection:
     def _handle_response(self,
                          response: ET.Element,
                          procfilter: bool):
-
         """
         Handles the query response using the xml library. Formats the xml data
         into usable dict format and also filters for highest processing level
@@ -548,7 +702,6 @@ class CopernicusHubConnection:
                      parameters: ProductQueryParams,
                      start: int = 0,
                      rows: int = 100):
-
         """
         Builds the query for use with the requests module.
         Query syntax from:
@@ -625,13 +778,27 @@ class CopernicusHubConnection:
         return query
 
 
-def filter_overlaps(product_list: dict, ROI: Polygon):
+def filter_overlaps(product_list,
+                    ROI,
+                    external_list=False):
+    """Filters out any overlapping products
 
-    """
-    Filters out any overlapping products if the ROI coordinates
-    are completely encompassed by one of the products and the sensing time for
-    both products is the same. (Products with the same sensing time will have
-    identical data in the overlapping regions.)
+    If the ROI coordinates are completely encompassed by two products and
+    the sensing time for both products is the same, the products will have
+    identical data in the overlapping regions. Thus one of them can be removed
+    from the downloads required.
+
+    Parameters
+    ----------
+    product_list : dict
+        Contains all the products returned from the query, keyed by their
+        product UUID
+    ROI : :obj:`shapely.geometry.Polygon`
+    external_list : dict
+        A list of products provided that represents the products already
+        present in the inventory. Prevents filtering from removing one product
+        over another when the first is already present in the inventory.
+
     """
 
     def extract_time(time_string):
@@ -652,12 +819,21 @@ def filter_overlaps(product_list: dict, ROI: Polygon):
 
     encompassing_products = []
 
-    for uuid, product in product_list.items():
+    for uuid, product in product_list.copy().items():
         # format the footprint string for use with pyshp
         footprint = loads(product['footprint'])  # load in via shapely
         # if ROI fully encompassed by a product
         if ROI.within(footprint):
             encompassing_products.append(uuid)
+        if external_list:
+            if uuid in external_list:
+                # if encompassing product already in given list
+                # then remove it. This stops the edge case where one
+                # encompassing product gets preferred over another even though
+                # the second is already downloaded (ie. present in the external
+                # list). This would cause duplicate data in the final batch
+                # list.
+                product_list.pop(uuid, None)
 
     # filter out duplicates
     product_list_copy = product_list.copy()
@@ -707,58 +883,5 @@ def filter_overlaps(product_list: dict, ROI: Polygon):
 
 
 class ChecksumError(Exception):
+    """Checksum Exception for when checksums do not match in downloading."""
     pass
-
-
-if __name__ == "__main__":
-
-    # get ESA login info
-
-    download_path = DATA_PATH
-    quicklooks_path = QUICKLOOKS_PATH
-
-    # aiming for best S2 test product in coords and time frame
-    # as filtered by filter_overlaps function
-    # S2A_MSIL2A_20180626T110621_N0208_R137_T30UXC_20180626T120032
-    s2_testproduct = ProductQueryParams()
-    t = datetime.date(2018, 6, 26)
-    s2_testproduct.acquisition_date_range(t)
-    # ESA required coordinates to be in (lon, lat) format
-    test_coords = [
-     [-1.457530077065015, 52.19345388039674],
-     [-1.459996965719496, 52.19090717497048],
-     [-1.466515166082085, 52.18543304302305],
-     [-1.463587991194426, 52.18127295502671],
-     [-1.458228587403975, 52.17663695482379],
-     [-1.455491238873678, 52.17444814271325],
-     [-1.452644611915905, 52.17396223669407],
-     [-1.444929550955296, 52.17417824001138],
-     [-1.448993345097861, 52.19077295431794],
-     [-1.450033434119889, 52.19282940614654],
-     [-1.454319601915816, 52.19499959454429],
-     [-1.457530077065015, 52.19345388039674]]
-    s2_testproduct.coordinates(test_coords)
-    s2_testproduct.product_details('S2', 'BEST')
-
-    # Aiming for S1 test products
-    # S1A_IW_SLC__1SDV_20180628T061437_20180628T061504_022553_027169_519F
-    s1_testproduct = ProductQueryParams()
-    s1_testproduct.coords_from_file('test_files/CB7_4SS_grid_1 _combi.shp',
-                                    '.shp',
-                                    'BNG')
-
-    t = datetime.date(2018, 6, 27)
-    t_end = datetime.date(2018, 6, 28)
-    s1_testproduct.acquisition_date_range(t, t_end)
-    s1_testproduct.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
-    hub = CopernicusHubConnection()
-
-    # Submit queries to ESA scihub API
-    totals2, s2products = hub.submit_query(s2_testproduct)
-    totals1, s1products = hub.submit_query(s1_testproduct)
-    s2products = filter_overlaps(s2products, s2_testproduct.ROI)
-    s1products = filter_overlaps(s1products, s1_testproduct.ROI)
-    hub.download_quicklooks(s2products, quicklooks_path)
-    hub.download_quicklooks(s1products, quicklooks_path)
-    hub.download_products(s2products, download_path, verify=True)
-    hub.download_products(s1products, download_path, verify=True)
