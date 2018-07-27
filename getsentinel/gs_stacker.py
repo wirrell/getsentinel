@@ -277,14 +277,14 @@ class Stacker():
                     layer = np.pad(layer,
                                    ((0, 0), (0, 1)),
                                    'constant',
-                                   constant_values=0)
+                                   constant_values=np.NAN)
                     width_add = width_add - 1
                     continue
                 # pad left side of array
                 layer = np.pad(layer,
                                ((0, 0), (1, 0)),
                                'constant',
-                               constant_values=0)
+                               constant_values=np.NaN)
                 width_add = width_add - 1
 
             while height_add:
@@ -365,6 +365,11 @@ class Stacker():
                     # polygons being actually sligthly larger than the product
                     # data they represent. Ie. the ROI is in the dead zone!
                     continue
+
+                # mask all the zero values in the output array sounding the
+                # region of interest
+                out_image = np.ma.masked_where(out_image==0, out_image)
+                print(out_image)
 
                 product = self.products[uuid]
                 info = {'from': uuid,
