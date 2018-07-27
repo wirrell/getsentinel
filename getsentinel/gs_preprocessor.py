@@ -11,6 +11,7 @@ from . import gs_localmanager
 from .gs_config import SEN2COR_ROOT_PATH, DATA_PATH
 import xml.etree.ElementTree as ET
 import warnings
+import os, shutil, subprocess
 
 def get_processable_files(inventory=None, ignore_processed=True):
     """
@@ -95,19 +96,49 @@ def process(uuid,pipeline,inventory=None):
     product_entry = inventory[uuid]
     # currently has explicit coding of pipeline, in case more added
     if pipeline == 'S1':
+        raise NotImplementedError('No support for S1 yet')
         new_fname = _process_S1(product_entry)
         add_S1_processed_to_inventory(uuid,new_fname)
         # not sure if necessary, but seems a good time to do an integ checking
         return gs_localmanager.check_integrity()
 
     elif pipeline == 'S2':
-        new_fname = _process_S2(product_entry)
+        #raise NotImplementedError('No support for S2 yet')
+        wd, fname = _generate_temp_copy(uuid)
+        # do the processing
+        _process_S2(wd,fname)
+        # move desired folder to data
+        files = os.listdir(wd)
+
+        #
+        new_fname = [x for x in files if x.endswith('.SAFE') and x!=fname][0]
+
+        # move to data dir
+        shutil.move(os.path.join(wd,new_fname),os.path.join(DATA_PATH,new_fname))
+        # remove temp
+        shutil.rmtree(wd)
         add_S2_processed_to_inventory(uuid,new_fname)
         # not sure if necessary, but seems a good time to do an integ checking
         return gs_localmanager.check_integrity()
 
     else:
         raise NotImplementedError('Unknown pipeline')
+
+def _generate_temp_copy(uuid,inventory=None):
+    """
+    generates a new folder for processing the safe files in
+    """
+    if inventory == None:
+        inventory = gs_localmanager._get_inventory()
+
+    fname = inventory[uuid]['filename']
+    fname_temp = 'temp_'+fname
+    # generate a new directory in data
+    os.makedirs(os.path.join(DATA_PATH,fname_temp))
+    # copy original SAFE into it
+    shutil.copytree(os.path.join(DATA_PATH,fname),
+                    os.path.join(DATA_PATH,fname_temp,fname))
+    return os.path.join(DATA_PATH,fname_temp),fname
 
 # warnings
 def _prod_warning(uuid):
@@ -141,11 +172,13 @@ def add_S2_processed_to_inventory(uuid,new_file_name, inventory=None):
     gs_localmanager.add_new_products({uuid:new_entry})
     return None
 
-def _process_S2(product_entry):
+def _process_S2(temp_directory,filename):
     """
     takes a product dictionary and processes file with sen2cor
     """
-    return filename
+    subprocess.Popen([SEN2COR_ROOT_PATH,filename],cwd=temp_directory)
+
+    return None
 # radar specific functions
 
 def add_S1_processed_to_inventory(uuid,new_file_name, inventory=None):
