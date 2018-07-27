@@ -35,6 +35,13 @@ def check_integrity():
     -------
     bool
         True if successful, will throw an error otherwise.
+
+    Raises
+    ------
+    RuntimeError
+        If no unique match for a user added product can be found.
+    RuntimeError
+        If the user added product filename does not start with 'S1' or 'S2'
     
     """
 
@@ -65,17 +72,23 @@ def check_integrity():
         # query the ESA hub for the original product data
         total, product = hub.raw_query(search_term)
         if total is 0 or total > 1:
-            raise RuntimeError("Could not find a unique matching product"
-                               "in the ESA database for filename: \n"
-                               " {0} in the {1} directory."
-                               "".format(filename, DATA_PATH))
-        uuid = product.keys()[0]
-        product_info = product[uuid]
+            # retry with a different part of the file name string
+            search_term = 'filename:*' + filename[17:47] + '*'
+            total, product = hub.raw_query(search_term)
+            if total is 0 or total > 1:
+                # if still now match, raise error.
+                raise RuntimeError("Could not find a unique matching product"
+                                   " in the ESA database for filename: \n"
+                                   " {0} in the {1} directory."
+                                   "".format(filename, DATA_PATH))
+        for old_id in product:
+            uuid = old_id
+            product_info = product[uuid]
         product_info['userprocessed'] = True
 
         # TODO: write Sentinel-1 extra product info handling
 
-        if product_info['platform'] == 'Sentinel-2':
+        if product_info['platformname'] == 'Sentinel-2':
             file_info = list(Path(DATA_PATH + '/' + filename).glob('*MTD*'))
             # NOTE: this relies on the xml info file structure remaining constant
             with open(file_info[0], 'r') as read_in:
@@ -110,9 +123,8 @@ def check_integrity():
         product_info['filename'] = filename
 
         newid = uuid + '-user'
-        product[newid] = product_info
 
-        return product
+        return newid, product_info
 
         # TODO: check manual addition of S1 files to download directory doesn't
         # cause issues.
@@ -131,22 +143,24 @@ def check_integrity():
         product_name = filename[:-5]
         if 'USER_PRD' in product_name:
             # files already user processed require special case handling
-            product = handle_user_prd(filename)
-            for uuid in product:
-                new_products[uuid] = product[uuid]
+            newid, product_info = handle_user_prd(filename)
+            new_products[newid] = product_info
             continue
 
         search_term = 'filename:*' + product_name + '*'
         total, product = hub.raw_query(search_term)
         if total is 0:  # assume it is a user processed file
-            product = handle_user_prd(filename)
+            newid, product_info = handle_user_prd(filename)
+        if total is 1: # unique product found
+            for uuid in product:
+                newid = uuid
+                product_info = product[uuid]
         if total > 1:
             raise RuntimeError("Could not find a unique matching product"
-                               "in the ESA database for filename: \n"
+                               " in the ESA database for filename: \n"
                                " {0} in the {1} directory."
                                "".format(filename, DATA_PATH))
-        for uuid in product:
-            new_products[uuid] = product[uuid]
+        new_products[newid] = product_info
 
     for uuid in new_products:
         product_inventory[uuid] = new_products[uuid]
@@ -219,6 +233,7 @@ def add_new_products(new_products: dict):
         if uuid[-1].isdigit():  # if already numbered version
             num = int(uuid[-1]) + 1
             return uuid[:-1] + str(num)
+        return uuid + '1'
 
     product_inventory = _get_inventory()
     added_uuids = []
