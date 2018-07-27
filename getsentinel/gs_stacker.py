@@ -369,7 +369,6 @@ class Stacker():
                 # mask all the zero values in the output array sounding the
                 # region of interest
                 out_image = np.ma.masked_where(out_image==0, out_image)
-                print(out_image)
 
                 product = self.products[uuid]
                 info = {'from': uuid,
