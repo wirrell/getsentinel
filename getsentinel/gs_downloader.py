@@ -597,6 +597,7 @@ class CopernicusHubConnection:
                                       expected_size=(filelength/1024) + 1):
                 if chunk:  # filter out keep-alive new chunks
                     handle.write(chunk)
+                    handle.flush()
 
         # check the download was successful using MD5 Checksum
         if verify:
