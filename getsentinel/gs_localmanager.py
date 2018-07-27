@@ -27,7 +27,7 @@ from . import gs_downloader
 
 def check_integrity():
     """Checks the integrity of the current inventory.
-    
+
     Adds any products that were manually added to the DATA_PATH by the user
     since the last check. Removes any missing products.
 
@@ -35,7 +35,7 @@ def check_integrity():
     -------
     bool
         True if successful, will throw an error otherwise.
-    
+
     """
 
     data_path = Path(DATA_PATH)
@@ -64,18 +64,23 @@ def check_integrity():
         search_term = 'filename:*' + filename[25:60] + '*'
         # query the ESA hub for the original product data
         total, product = hub.raw_query(search_term)
+        #return product
+
         if total is 0 or total > 1:
             raise RuntimeError("Could not find a unique matching product"
                                "in the ESA database for filename: \n"
                                " {0} in the {1} directory."
                                "".format(filename, DATA_PATH))
-        uuid = product.keys()[0]
+
+        uuid = list(product.keys())[0]
         product_info = product[uuid]
+
         product_info['userprocessed'] = True
+
 
         # TODO: write Sentinel-1 extra product info handling
 
-        if product_info['platform'] == 'Sentinel-2':
+        if product_info['platformname'] == 'Sentinel-2':
             file_info = list(Path(DATA_PATH + '/' + filename).glob('*MTD*'))
             # NOTE: this relies on the xml info file structure remaining constant
             with open(file_info[0], 'r') as read_in:
@@ -199,13 +204,13 @@ def _save_product_inventory(product_inventory):
 
 def add_new_products(new_products: dict):
     """Adds new products to the inventory.
-    
+
     Note
     ----
     Used by the gs_downloader to log newly downloaded products. This function
     does not need to be called when you are downloading products via
     gs_downloader they are added to the inventory automatically.
-    
+
     Returns
     -------
     added_uuids : list

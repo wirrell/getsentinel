@@ -7,8 +7,8 @@ TODO:
 @author: Joe Fennell
 """
 
-from . import gs_config
-from .gs_localmanager import SEN2COR_ROOT_PATH, DATA_PATH
+from . import gs_localmanager
+from .gs_config import SEN2COR_ROOT_PATH, DATA_PATH
 import xml.etree.ElementTree as ET
 import warnings
 
