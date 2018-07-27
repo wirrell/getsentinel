@@ -19,15 +19,11 @@ end_season = datetime.date(2018, 5, 7)
 s1_winterwheat_field = gs_downloader.ProductQueryParams()
 s1_winterwheat_field.acquisition_date_range(start_season, end_season)
 s1_winterwheat_field.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
-s1_winterwheat_field.coords_from_file(str(test_file),  # MK44 2EE grid 3
-                                      '.shp',
-                                      'BNG')
+s1_winterwheat_field.coords_from_file(str(test_file))  # MK44 2EE grid 3
 s2_winterwheat_field = gs_downloader.ProductQueryParams()
 s2_winterwheat_field.acquisition_date_range(start_season, end_season)
 s2_winterwheat_field.product_details('S2', 'L2A', cloudcoverlimit=2)
-s2_winterwheat_field.coords_from_file(str(test_file),
-                                      '.shp',
-                                      'BNG')
+s2_winterwheat_field.coords_from_file(str(test_file))
 
 hub = gs_downloader.CopernicusHubConnection()
 totals1, s1products = hub.submit_query(s1_winterwheat_field)
