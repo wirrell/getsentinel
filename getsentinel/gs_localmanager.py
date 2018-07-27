@@ -27,7 +27,7 @@ from . import gs_downloader
 
 def check_integrity():
     """Checks the integrity of the current inventory.
-    
+
     Adds any products that were manually added to the DATA_PATH by the user
     since the last check. Removes any missing products.
 
@@ -35,6 +35,7 @@ def check_integrity():
     -------
     bool
         True if successful, will throw an error otherwise.
+<<<<<<< HEAD
 
     Raises
     ------
@@ -43,6 +44,11 @@ def check_integrity():
     RuntimeError
         If the user added product filename does not start with 'S1' or 'S2'
     
+||||||| merged common ancestors
+    
+=======
+
+>>>>>>> joe
     """
 
     data_path = Path(DATA_PATH)
@@ -71,6 +77,7 @@ def check_integrity():
         search_term = 'filename:*' + filename[25:60] + '*'
         # query the ESA hub for the original product data
         total, product = hub.raw_query(search_term)
+        #return product
         if total is 0 or total > 1:
             # retry with a different part of the file name string
             search_term = 'filename:*' + filename[17:47] + '*'
@@ -213,13 +220,13 @@ def _save_product_inventory(product_inventory):
 
 def add_new_products(new_products: dict):
     """Adds new products to the inventory.
-    
+
     Note
     ----
     Used by the gs_downloader to log newly downloaded products. This function
     does not need to be called when you are downloading products via
     gs_downloader they are added to the inventory automatically.
-    
+
     Returns
     -------
     added_uuids : list
@@ -245,9 +252,9 @@ def add_new_products(new_products: dict):
                                    " present in the product inventory."
                                    "".format(new_products[uuid]['identifier'],
                                              uuid))
-            uuid = get_new_uuid(uuid)
-        product_inventory[uuid] = new_products[uuid]
-        added_uuids.append(uuid)
+            new_uuid = get_new_uuid(uuid)
+        product_inventory[new_uuid] = new_products[uuid]
+        added_uuids.append(new_uuid)
 
     _save_product_inventory(product_inventory)
 
