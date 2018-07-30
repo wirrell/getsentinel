@@ -176,7 +176,8 @@ def _process_S2(temp_directory,filename):
     """
     takes a product dictionary and processes file with sen2cor
     """
-    subprocess.Popen([SEN2COR_ROOT_PATH,filename],cwd=temp_directory)
+    p1 = subprocess.Popen([SEN2COR_ROOT_PATH,filename],cwd=temp_directory)
+    p1.wait()
 
     return None
 # radar specific functions
