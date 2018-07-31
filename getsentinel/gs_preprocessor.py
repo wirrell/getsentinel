@@ -8,7 +8,7 @@ TODO:
 """
 
 from . import gs_localmanager
-from .gs_config import SEN2COR_ROOT_PATH, DATA_PATH
+from .gs_config import SEN2COR_ROOT_PATH, DATA_PATH, GPT_ROOT_PATH
 import xml.etree.ElementTree as ET
 import warnings
 import os, shutil, subprocess
@@ -93,12 +93,12 @@ def process(uuid,pipeline,inventory=None):
         inventory = gs_localmanager.get_product_inventory()
 
     # retrieve product dictionary
-    product_entry = inventory[uuid]
     # currently has explicit coding of pipeline, in case more added
     if pipeline == 'S1':
-        raise NotImplementedError('No support for S1 yet')
-        new_fname = _process_S1(product_entry)
-        add_S1_processed_to_inventory(uuid,new_fname)
+        #raise NotImplementedError('No support for S1 yet')
+        new_fnames = _process_S1(uuid)
+        for f in new_fnames:
+            add_S1_processed_to_inventory(uuid,f)
         # not sure if necessary, but seems a good time to do an integ checking
         return gs_localmanager.check_integrity()
 
@@ -217,12 +217,12 @@ def _get_UTM_zones(product_entry):
 
     # accept the single tile id from a sentinel 2
     if product_entry['platformname'] == 'Sentinel-2':
-        return [mgrs_to_UTM(product_entry['tileid'])]
+        return [_mgrs_to_UTMzone(product_entry['tileid'])]
 
     # accept the list of tile ids from a sentinel 1
     elif product_entry['platformname'] == 'Sentinel-1':
-        for square in product_entry['tileid']:
-            UTMs.append(mgrs_to_UTMzone(square))
+        for square in product_entry['tileid'][0]:
+            UTMs.append(_mgrs_to_UTMzone(square))
         unique = []
         for z in UTMs:
             if unique.count(z) == 0:
@@ -243,17 +243,65 @@ def _mgrs_to_UTMzone(square):
     else:
         return zone, 'S'
 
+def _process_S1(uuid,inventory=None):
+    """
+    takes a product dictionary and processes file with S1 pipelineself.
+    Currently only returns HDF5 files for 1 or 2 grid zones
+    """
+    # get inventory file if not passed to function
+    if inventory == None:
+        inventory = gs_localmanager._get_inventory()
+    product_entry = inventory[uuid]
+    # first input is always input files
+    fname = product_entry['filename']
+    pinput1 ='-Pinput1="'+os.path.join(DATA_PATH,fname)+'"'
+    # get a list of intersecting grid zones
+    grid_zones = _get_UTM_zones(product_entry)
 
-def _make_s1_graph_file(graph_file_template,inventory_entry):
-    """
-    Takes a graph file template and produces a new temp graph_file for
-    a given S1 file
-    """
-    return filename
+    # do the processing
+    if len(grid_zones) == 1:
+        # make a list of inputs
+        graph = 's1_graphs/2in_hdf5.xml'
+        pinput2 = '-Pinput2="{}"'.format(str(grid_zones[0][0]))
+        #pinput3 = '-Pinput3="{}"'.format(str(grid_zones[1][0]))
+        outname1 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
+            str(grid_zones[0][0]))
+        #outname2 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
+        #    str(grid_zones[1][0]))
+        ptarget1 = '-Ptarget1="{}"'.format(outname1)
+        #ptarget2 = '-Ptarget2="{}"'.format(outname2)
 
-def _process_S1(product_entry):
-    """
-    takes a product dictionary and processes file with S1 pipeline
-    """
-    grid_zones = _get_utm_zones(product_entry)
-    return filename
+        # have to do it this way as seem to be problems
+        # supplying a list
+        command = '{} {} {} {} {}'.format(
+        GPT_ROOT_PATH, graph, pinput1, pinput2, ptarget1)
+
+        # run process
+        p1 = subprocess.Popen(command,shell=True)
+        p1.wait()
+        return [outname1]
+
+    elif len(grid_zones) == 2:
+        # make a list of inputs
+        graph = 's1_graphs/2in_hdf5.xml'
+        pinput2 = '-Pinput2="{}"'.format(str(grid_zones[0][0]))
+        pinput3 = '-Pinput3="{}"'.format(str(grid_zones[1][0]))
+        outname1 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
+            str(grid_zones[0][0]))
+        outname2 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
+            str(grid_zones[1][0]))
+        ptarget1 = '-Ptarget1="{}"'.format(outname1)
+        ptarget2 = '-Ptarget2="{}"'.format(outname2)
+
+        # have to do it this way as seem to be problems
+        # supplying a list
+        command = '{} {} {} {} {} {} {}'.format(
+        GPT_ROOT_PATH, graph, pinput1, pinput2, pinput3, ptarget1,ptarget2)
+
+        # run process
+        p1 = subprocess.Popen(command,shell=True)
+        p1.wait()
+        return [outname1,outname2]
+
+    elif len(grid_zones) > 2:
+        raise ValueError('Currently only support for 1 or 2 zone swaths')
