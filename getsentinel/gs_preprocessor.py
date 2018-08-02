@@ -79,14 +79,15 @@ def get_processable_files(inventory=None, ignore_processed=True):
 
     return out
 
-
 def process(uuid,pipeline,inventory=None):
     """
     Runs the processing operation for a given uuid/pipeline pair.
+    pipeline = S2 outputs a SAFE format package
+    pipeline = S1 outputs a geotiff format package
 
     Arguments:
     uuid - uuid of product
-    pipeline - currently either "S1" or "S2"
+    pipeline - currently either "S1_UTM" "S1_WGS84" "S2"
     """
     # get inventory file if not passed to function
     if inventory == None:
@@ -94,11 +95,18 @@ def process(uuid,pipeline,inventory=None):
 
     # retrieve product dictionary
     # currently has explicit coding of pipeline, in case more added
-    if pipeline == 'S1':
+    if pipeline == 'S1_UTM':
         #raise NotImplementedError('No support for S1 yet')
         new_fnames = _process_S1(uuid)
         for f in new_fnames:
-            add_S1_processed_to_inventory(uuid,f)
+            add_S1_processed_to_inventory(uuid,f,pipeline)
+        # not sure if necessary, but seems a good time to do an integ checking
+        return gs_localmanager.check_integrity()
+
+    if pipeline == 'S1_WGS84':
+        new_fnames = _process_S1_WGS84(uuid)
+        for f in new_fnames:
+            add_S1_processed_to_inventory(uuid,f, pipeline)
         # not sure if necessary, but seems a good time to do an integ checking
         return gs_localmanager.check_integrity()
 
@@ -117,12 +125,24 @@ def process(uuid,pipeline,inventory=None):
         shutil.move(os.path.join(wd,new_fname),os.path.join(DATA_PATH,new_fname))
         # remove temp
         shutil.rmtree(wd)
-        add_S2_processed_to_inventory(uuid,new_fname)
+        add_S2_processed_to_inventory(uuid,new_fname,pipeline)
         # not sure if necessary, but seems a good time to do an integ checking
         return gs_localmanager.check_integrity()
 
     else:
         raise NotImplementedError('Unknown pipeline')
+
+
+#### Sentinel 2 processing functions
+
+def _process_S2(temp_directory,filename):
+    """
+    takes a product dictionary and processes file with sen2cor
+    """
+    p1 = subprocess.Popen([SEN2COR_ROOT_PATH,filename],cwd=temp_directory)
+    p1.wait()
+
+    return None
 
 def _generate_temp_copy(uuid,inventory=None):
     """
@@ -140,13 +160,7 @@ def _generate_temp_copy(uuid,inventory=None):
                     os.path.join(DATA_PATH,fname_temp,fname))
     return os.path.join(DATA_PATH,fname_temp),fname
 
-# warnings
-def _prod_warning(uuid):
-    warnings.warn("product {} is not a recognised data\
-    type and cannot be processed".format(uuid))
-
-# MSI specific functions
-def add_S2_processed_to_inventory(uuid,new_file_name, inventory=None):
+def add_S2_processed_to_inventory(uuid,new_file_name, pipeline, inventory=None):
     """
     makes a new product entry dict and uses gs_localmanager
     to add to inventory
@@ -167,22 +181,115 @@ def add_S2_processed_to_inventory(uuid,new_file_name, inventory=None):
 
     # update user processed flag
     new_entry['userprocessed'] = True
+    new_entry['pipeline'] = pipeline
 
     # inventorise
     gs_localmanager.add_new_products({uuid:new_entry})
     return None
 
-def _process_S2(temp_directory,filename):
-    """
-    takes a product dictionary and processes file with sen2cor
-    """
-    p1 = subprocess.Popen([SEN2COR_ROOT_PATH,filename],cwd=temp_directory)
+##################
+
+# Sentinel 1 specific functions
+
+def _process_S1_WGS84(uuid, inventory=None):
+    # get inventory file if not passed to function
+    if inventory == None:
+        inventory = gs_localmanager._get_inventory()
+    product_entry = inventory[uuid]
+    # first input is always input files
+    fname = product_entry['filename']
+    # make a list of inputs
+    args,outnames = _make_WGS84_geotiff_inputs(fname)
+    command = '{0} {1} {2} {3}'.format(*args)
+    # run process
+    p1 = subprocess.Popen(command,shell=True)
     p1.wait()
+    return outnames
 
-    return None
-# radar specific functions
+def _make_WGS84_geotiff_inputs(fname):
+    """
+    WGS84 geotiff
+    """
+    # make a list of inputs
+    graph = 's1_graphs/george_S1_GRD_Processing.xml'
+    i1 ='-Pinput1="'+os.path.join(DATA_PATH,fname)+'"'
+    outname1 = '{}_GRDL2_WGS84.tif'.format(os.path.join(DATA_PATH,fname.split('.')[0]))
+    t1 = '-Ptarget1="{}"'.format(outname1)
 
-def add_S1_processed_to_inventory(uuid,new_file_name, inventory=None):
+    return [GPT_ROOT_PATH, graph, i1, t1],[outname1]
+
+def _process_S1(uuid,inventory=None):
+    """
+    takes a product dictionary and processes file with S1 pipelineself.
+    Currently only returns HDF5 files for 1 or 2 grid zones
+    """
+    # get inventory file if not passed to function
+    if inventory == None:
+        inventory = gs_localmanager._get_inventory()
+    product_entry = inventory[uuid]
+    # first input is always input files
+    fname = product_entry['filename']
+    # get a list of intersecting grid zones
+    grid_zones = _get_UTM_zones(product_entry)
+
+    # do the processing
+    if len(grid_zones) == 1:
+        # make a list of inputs
+        args,outnames = _make_1zone_hdf_inputs(fname,grid_zones)
+        command = '{0} {1} {2} {3} {4} {5}'.format(*args)
+        # run process
+        p1 = subprocess.Popen(command,shell=True)
+        p1.wait()
+        return outnames
+
+    elif len(grid_zones) == 2:
+        # make a list of inputs
+        args,outnames = _make_2zone_hdf_inputs(fname,grid_zones)
+        command = '{0} {1} {2} {3} {4} {5} {6} {7} {8}'.format(*args)
+        # run process
+        p1 = subprocess.Popen(command,shell=True)
+        p1.wait()
+        return outnames
+
+    elif len(grid_zones) > 2:
+        raise ValueError('Currently only support for 1 or 2 zone swaths')
+
+def _make_2zone_hdf_inputs(fname,grid_zones):
+    """
+    2 zone hdf5
+    """
+    # make a list of inputs
+    graph = 's1_graphs/2in_hdf5_2.xml'
+    i1 ='-Pinput1="'+os.path.join(DATA_PATH,fname)+'"'
+    i2 = '-Pinput2="{}"'.format(str(grid_zones[0][0]))
+    i3 = '-Pinput3="{}"'.format(str(grid_zones[0][1]))
+    i4 = '-Pinput4="{}"'.format(str(grid_zones[1][0]))
+    i5 = '-Pinput5="{}"'.format(str(grid_zones[1][1]))
+    outname1 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
+        str(grid_zones[0][0]))
+    outname2 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
+        str(grid_zones[1][0]))
+    t1 = '-Ptarget1="{}"'.format(outname1)
+    t2 = '-Ptarget2="{}"'.format(outname2)
+
+    return [GPT_ROOT_PATH, graph, i1, i2, i3, i4, i5, t1, t2], [outname1,outname2]
+
+def _make_1zone_hdf_inputs(fname,grid_zones):
+    """
+    1 zone hdf5
+    """
+    # make a list of inputs
+    graph = 's1_graphs/1in_hdf5_2.xml'
+    i1 ='-Pinput1="'+os.path.join(DATA_PATH,fname)+'"'
+    i2 = '-Pinput2="{}"'.format(str(grid_zones[0][0]))
+    i3 = '-Pinput3="{}"'.format(str(grid_zones[0][1]))
+    outname1 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
+        str(grid_zones[0][0]))
+    t1 = '-Ptarget1="{}"'.format(outname1)
+
+    return [GPT_ROOT_PATH, graph, i1, i2, i3, t1],[outname1]
+
+def add_S1_processed_to_inventory(uuid,new_file_name, pipeline, inventory=None):
     """
     makes a new product entry dict and uses gs_localmanager
     to add to inventory
@@ -202,11 +309,14 @@ def add_S1_processed_to_inventory(uuid,new_file_name, inventory=None):
 
     # update user processed flag
     new_entry['userprocessed'] = True
+    new_entry['pipeline'] = pipeline
 
     # inventorise
     gs_localmanager.add_new_products({uuid:new_entry})
+
     return None
 
+################################
 # general geospatial functions
 
 def _get_UTM_zones(product_entry):
@@ -222,7 +332,7 @@ def _get_UTM_zones(product_entry):
     # accept the list of tile ids from a sentinel 1
     elif product_entry['platformname'] == 'Sentinel-1':
         for square in product_entry['tileid'][0]:
-            UTMs.append(_mgrs_to_UTMzone(square))
+            UTMs.append(_mgrs_to_zone(square))
         unique = []
         for z in UTMs:
             if unique.count(z) == 0:
@@ -231,77 +341,18 @@ def _get_UTM_zones(product_entry):
     else:
         raise NotImplementedError('Unknown satellite platform')
 
-def _mgrs_to_UTMzone(square):
+def _mgrs_to_zone(square):
     """
-    Takes a MGRS grid square and returns zone and hemisphere
+    Takes a MGRS grid square and returns zone and projection
+    meridian
     """
     zone = int(square[:2])
     # convert char to number
-    band = ord(square[2])-64
-    if band > 13:
-        return zone, 'N'
-    else:
-        return zone, 'S'
+    meridian = int(((360/60)*zone)-183)
 
-def _process_S1(uuid,inventory=None):
-    """
-    takes a product dictionary and processes file with S1 pipelineself.
-    Currently only returns HDF5 files for 1 or 2 grid zones
-    """
-    # get inventory file if not passed to function
-    if inventory == None:
-        inventory = gs_localmanager._get_inventory()
-    product_entry = inventory[uuid]
-    # first input is always input files
-    fname = product_entry['filename']
-    pinput1 ='-Pinput1="'+os.path.join(DATA_PATH,fname)+'"'
-    # get a list of intersecting grid zones
-    grid_zones = _get_UTM_zones(product_entry)
+    return zone, meridian
 
-    # do the processing
-    if len(grid_zones) == 1:
-        # make a list of inputs
-        graph = 's1_graphs/2in_hdf5.xml'
-        pinput2 = '-Pinput2="{}"'.format(str(grid_zones[0][0]))
-        #pinput3 = '-Pinput3="{}"'.format(str(grid_zones[1][0]))
-        outname1 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
-            str(grid_zones[0][0]))
-        #outname2 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
-        #    str(grid_zones[1][0]))
-        ptarget1 = '-Ptarget1="{}"'.format(outname1)
-        #ptarget2 = '-Ptarget2="{}"'.format(outname2)
-
-        # have to do it this way as seem to be problems
-        # supplying a list
-        command = '{} {} {} {} {}'.format(
-        GPT_ROOT_PATH, graph, pinput1, pinput2, ptarget1)
-
-        # run process
-        p1 = subprocess.Popen(command,shell=True)
-        p1.wait()
-        return [outname1]
-
-    elif len(grid_zones) == 2:
-        # make a list of inputs
-        graph = 's1_graphs/2in_hdf5.xml'
-        pinput2 = '-Pinput2="{}"'.format(str(grid_zones[0][0]))
-        pinput3 = '-Pinput3="{}"'.format(str(grid_zones[1][0]))
-        outname1 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
-            str(grid_zones[0][0]))
-        outname2 = '{}_GRDL2_UTM{}.h5'.format(os.path.join(DATA_PATH,fname.split('.')[0]),
-            str(grid_zones[1][0]))
-        ptarget1 = '-Ptarget1="{}"'.format(outname1)
-        ptarget2 = '-Ptarget2="{}"'.format(outname2)
-
-        # have to do it this way as seem to be problems
-        # supplying a list
-        command = '{} {} {} {} {} {} {}'.format(
-        GPT_ROOT_PATH, graph, pinput1, pinput2, pinput3, ptarget1,ptarget2)
-
-        # run process
-        p1 = subprocess.Popen(command,shell=True)
-        p1.wait()
-        return [outname1,outname2]
-
-    elif len(grid_zones) > 2:
-        raise ValueError('Currently only support for 1 or 2 zone swaths')
+# warnings
+def _prod_warning(uuid):
+    warnings.warn("product {} is not a recognised data\
+    type and cannot be processed".format(uuid))
