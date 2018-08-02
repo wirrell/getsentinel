@@ -1,7 +1,24 @@
-# Config file
+"""getsentinel configuration
+
+Provides the paths for all the internal workings of getsentinal.
+Example structure:
+
+    *getsentinel config file*    
+    esa_username=userame
+    esa_password=password
+    sen2core_path=/path/to/sen2core
+    snap_gpt=/path/to/snap/gpt
+    data_path=/path/tostore/alldownloaddata
+    quicklooks_path=/path/to/store/all/quicklooks
+    s1graph_path-/path/to/s1processing/xmlfiles
+    
+TODO
+----
+Implement above new config.txt format"""
 
 SEN2COR_ROOT_PATH='/Users/joefennell/documents/Sen2Cor-02.05.05-Darwin64/bin/L2A_Process'
-DATA_PATH='data/'
+SNAP_GPT='/home/george/snap/bin/gpt'
+DATA_PATH='/run/media/george/Maxtor/George/sentinel_data/s1_winterwheat/'
 #DATA_PATH='/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat'
 #DATA_PATH = '/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat/'
 #QUICKLOOKS_PATH='/run/media/george/TOSHIBA_EXT/sentinel_data/s1_winterwheat/quicklooks'
@@ -23,3 +40,4 @@ def _getlogin():
             print(user + ':' + password, file=f)
         return user, password
 ESA_USERNAME, ESA_PASSWORD = _getlogin()
+
