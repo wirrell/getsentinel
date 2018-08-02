@@ -50,8 +50,12 @@ def check_integrity():
 
     product_inventory = _get_inventory()
 
-    # get all file names from directory
+    # get all .SAFE file names from directory
     product_list_add = [x.name for x in list(data_path.glob('*.SAFE'))]
+    # also get all processed files from directory
+    procd_files = [x.name for x in list(data_path.glob('*')) if x.is_file()]
+    # combine the two
+    product_list_add = product_list_add + procd_files
     product_inventory_gone = product_inventory.copy()
 
     for uuid, product in product_inventory.items():
@@ -123,7 +127,7 @@ def check_integrity():
         product_info['downloadlink'] = None
         product_info['filename'] = filename
 
-        newid = uuid + '-user'
+        newid = _get_new_id(uuid)
 
         return newid, product_info
 
@@ -164,6 +168,8 @@ def check_integrity():
         new_products[newid] = product_info
 
     for uuid in new_products:
+        if uuid in product_inventory:
+            uuid = _get_new_uuid(uuid)
         product_inventory[uuid] = new_products[uuid]
 
     _save_product_inventory(product_inventory)
@@ -227,14 +233,6 @@ def add_new_products(new_products: dict):
         List of strings containing the UUIDs of the products that have been
         successfully added to the inventory."""
 
-    def get_new_uuid(uuid):
-        # Produces a new uuid
-        if 'user' not in uuid:
-            return uuid + '-user'
-        if uuid[-1].isdigit():  # if already numbered version
-            num = int(uuid[-1]) + 1
-            return uuid[:-1] + str(num)
-        return uuid + '1'
 
     product_inventory = _get_inventory()
     added_uuids = []
@@ -252,10 +250,20 @@ def add_new_products(new_products: dict):
             else:
                 # product is a processed file
                 new_products[uuid]['origin'] = uuid
-            new_uuid = get_new_uuid(uuid)
+            new_uuid = _get_new_uuid(uuid)
         product_inventory[new_uuid] = new_products[uuid]
         added_uuids.append(new_uuid)
 
     _save_product_inventory(product_inventory)
 
     return added_uuids
+
+
+def _get_new_uuid(uuid):
+    # Produces a new uuid
+    if 'user' not in uuid:
+        return uuid + '-user'
+    if uuid[-1].isdigit():  # if already numbered version
+        num = int(uuid[-1]) + 1
+        return uuid[:-1] + str(num)
+    return uuid + '1'
