@@ -35,7 +35,6 @@ def check_integrity():
     -------
     bool
         True if successful, will throw an error otherwise.
-<<<<<<< HEAD
 
     Raises
     ------
@@ -44,11 +43,6 @@ def check_integrity():
     RuntimeError
         If the user added product filename does not start with 'S1' or 'S2'
     
-||||||| merged common ancestors
-    
-=======
-
->>>>>>> joe
     """
 
     data_path = Path(DATA_PATH)
@@ -255,6 +249,9 @@ def add_new_products(new_products: dict):
                       "".format(new_products[uuid]['identifier'],
                                              uuid))
                 continue
+            else:
+                # product is a processed file
+                new_products[uuid]['origin'] = uuid
             new_uuid = get_new_uuid(uuid)
         product_inventory[new_uuid] = new_products[uuid]
         added_uuids.append(new_uuid)
