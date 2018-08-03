@@ -17,6 +17,7 @@ TODO
 ----
 Implement above new config.txt format"""
 
+<<<<<<< HEAD
 import os
 import pathlib
 
