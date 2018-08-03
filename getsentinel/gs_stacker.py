@@ -20,8 +20,7 @@ TODO
 ----
 Implement S2 product handling.
 Implement other band_list preferences in `run` and `set_bands`
-Speak to Joe about implemented geocode GDAL warp in the preprocessing
-module.
+Investigate doing the masking using `gdal` instead of `rasterio`.
 
 """
 
@@ -68,7 +67,7 @@ class Stacker():
         products passed to the `Stacker` but generated outside of this time
         period will be excluded from the extraction process.
     end_date : datetime.date
-        The end of the time period used for data extraction. Inclusive.
+        The end of the time period used for data extraction. Inclusive. 
 
     Attributes
     ----------
@@ -212,8 +211,6 @@ class Stacker():
 
         for uuid, product in self.products.items():
             # get the filepath for the product files in .SAFE
-            rasters_path = Path(gs_config.DATA_PATH + product['filename'] +
-                                S1_RASTER_PATH)
             if product['platformname'] == 'Sentinel-1':
                 band_list = self.band_list[0]
             elif product['platformname'] == 'Sentinel-2':
@@ -221,19 +218,10 @@ class Stacker():
             else:
                 raise ValueError("Unrecognised platform name in product {0}"
                                  "".format(product['identifier']))
-            # generate a search term from the given band list
-            for band in band_list:
-                glob_find = '*' + band + '*'
-            # get all the files for that band (should be just one)
-                band_files = list(rasters_path.glob(glob_find))
-                if band_files is 0:
-                    print("No files found in product: {0} containing data for"
-                          " band {1} - skipping.".format(product['identifier'],
-                                                         band))
-                    continue
-                # should only be one band file per band in Sentinel products
 
-                self._extract_data(band_files[0], uuid, band)
+            # extract bands from processed files
+            for band in band_list:
+                self._extract_data(uuid, band)
 
         self._generate_stacks()
 
@@ -247,7 +235,10 @@ class Stacker():
                            sorted(layers.items())]
             layers_ = self._pad_layers(layers_)
             stack = np.stack(layers_, axis=0)
+            stack = np.ma.masked_where(stack==0, stack)
             stack = InfoLayer(stack, info_, transforms_, roi)
+            # mask all the zero values in the output array sounding the
+            # region of interest
             self.stack_list[roi] = stack
 
         self._generated = True
@@ -307,10 +298,7 @@ class Stacker():
 
         return padded_layers
 
-    def _extract_data(self,
-                      band_file: Path,
-                      uuid: str,
-                      band: str):
+    def _extract_data(self, uuid: str, band: str):
         """
         Checks the joblist to see what ROIs need to be postage stamped out of
         the given uuid and extracts them using rasterio.mask.
@@ -319,69 +307,56 @@ class Stacker():
         add it to the corresponding list in the layer_stack.
         """
 
-        with warnings.catch_warnings(record=True) as caught_warnings:
-            raster = rasterio.open(str(band_file), 'r')
-            raster_epsg = 'EPSG:' + str(raster.gcps[1]).split(':')[-1]
-            raster.close()  # close file link so gdalwarp can modify the file
+        # TODO: talk to Joe about the layout for this, see suggestions paper
+        # notes
 
-        # S1 products are georeferenced but no geocoded, so they return a
-        # NotGeoreferencedWarning so must use gdalwarp
-        # to introduce geocode for use in rasterio
-        # TODO: Implement the geocoding in gs_preprocessing rather than here.
-        if caught_warnings:
-            if caught_warnings[0].category is re.NotGeoreferencedWarning:
-                suffix = band_file.suffix
-                file_path = str(band_file)[:-len(suffix)]
-                new_file = file_path + '-geocoded' + band_file.suffix
-                if not Path(new_file).exists():
-                    print('Correcting georeferencing of file with'
-                          ' UUID: {0}'.format(uuid))
-                    gdal_command = ('gdalwarp -tps -r bilinear'
-                                    ' -t_srs ' + raster_epsg +
-                                    ' {0} {1}').format(str(band_file),
-                                                       str(new_file))
-                    # call gdalwarp in subprocess to geocode S1 file
-                    try:
-                        subprocess.run(gdal_command, shell=True)
-                    except KeyboardInterrupt:
-                        # Stop half-calculated rasters from taking up space
-                        # upon keyboard interrupt.
-                        Path(new_file).unlink()
+        # get the path to the processed .tif
 
-                band_file = new_file
+        product = self.products[uuid]
+        platform = product['platformname']
+        filename = product['filename']
+        info = {'from': uuid,
+                'platform': platform,
+                'datetime': product['beginposition'],
+                'band': band,
+                'processing': product['producttype']}
+        identifier = product['identifier']
+        if platform == 'Sentinel-2':
+            raise NotImplementedError('S2 support not yet implemented.')
+
+        if platform == 'Sentinel-1':
+            if filename.endswith('.SAFE'):
+                raise RuntimeError("Product {0} is an unprocessed Sentinel-1 "
+                                   "file and cannot be stacked.".format(
+                                   filename))
+            info['mode'] = product['sensoroperationalmode']
+            if band is 'vv':
+                layer_number = 0
+            if band is 'vh':
+                layer_number = 1
+
+        proc_file = gs_config.DATA_PATH + filename
 
         # get the shape the reside within this product
         associated_ROIs = self.job_list[uuid]
 
-        with rasterio.open(str(band_file), 'r') as raster:
+        with rasterio.open(str(proc_file), 'r') as raster:
             for ROI in associated_ROIs:
                 mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
                 out_image, out_transform = rasterio.mask.mask(raster,
                                                               mask,
                                                               crop=True)
 
-                if np.count_nonzero(out_image) is 0 or np.amax(out_image) < 10:
+                if np.count_nonzero(out_image) is 0 or (np.max(out_image) <
+                                                        0.0001):
                     # The mask has fallen victim the the traversty that is ESA
                     # polygons being actually sligthly larger than the product
                     # data they represent. Ie. the ROI is in the dead zone!
                     continue
 
-                # mask all the zero values in the output array sounding the
-                # region of interest
-                out_image = np.ma.masked_where(out_image==0, out_image)
-
-                product = self.products[uuid]
-                info = {'from': uuid,
-                        'platform': product['platformname'],
-                        'datetime': product['beginposition'],
-                        'band': band,
-                        'processing': product['producttype']}
-
-                if product['platformname'] == 'Sentinel-1':
-                    info['mode'] = product['sensoroperationalmode']
-
-                # out_image is 3D when ie. [1, X, Y] and we only need the 2D
-                layer = InfoLayer(out_image[0], info, out_transform)
+                # out_image is 3D when ie. [2, X, Y] and we only need the 2D
+                # either vv or vh
+                layer = InfoLayer(out_image[layer_number], info, out_transform)
                 date = product['beginposition']
                 self._layerbank[ROI][date] = layer
 
@@ -464,6 +439,8 @@ class InfoLayer(np.ndarray):
     adapted from:
         https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html
 
+    Also masks all the zero values out of the array.
+
     Parameters
     ----------
     input_array : numpy.ndarray
@@ -491,6 +468,7 @@ class InfoLayer(np.ndarray):
 
     def __new__(cls, input_array, info, transform, name=False):
         obj = np.asarray(input_array).view(cls)
+        obj = np.ma.masked_where(obj==0, obj)
         obj.info = info
         obj.transform = transform
         if name:
