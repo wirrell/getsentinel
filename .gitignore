@@ -6,3 +6,4 @@ user_info.txt
 .ipynb_checkpoints/
 Joe_test.ipynb
 /getsentinel/__pycache__
+/getsentinel/gs_config.txt
