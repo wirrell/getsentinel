@@ -25,6 +25,16 @@ from .gs_config import DATA_PATH
 from . import gs_downloader
 
 
+def _get_new_uuid(uuid):
+    # Produces a new uuid
+    if 'user' not in uuid:
+        return uuid + '-user'
+    if uuid[-1].isdigit():  # if already numbered version
+        num = int(uuid[-1]) + 1
+        return uuid[:-1] + str(num)
+    return uuid + '1'
+
+
 def check_integrity():
     """Checks the integrity of the current inventory.
 
@@ -35,7 +45,6 @@ def check_integrity():
     -------
     bool
         True if successful, will throw an error otherwise.
-<<<<<<< HEAD
 
     Raises
     ------
@@ -43,12 +52,7 @@ def check_integrity():
         If no unique match for a user added product can be found.
     RuntimeError
         If the user added product filename does not start with 'S1' or 'S2'
-    
-||||||| merged common ancestors
-    
-=======
 
->>>>>>> joe
     """
 
     data_path = Path(DATA_PATH)
@@ -56,8 +60,13 @@ def check_integrity():
 
     product_inventory = _get_inventory()
 
-    # get all file names from directory
+    # get all .SAFE file names from directory
     product_list_add = [x.name for x in list(data_path.glob('*.SAFE'))]
+    # also get all processed files from directory
+    procd_files = [x.name for x in list(data_path.glob('*')) if x.is_file() and
+                   not x.suffix == '.json']
+    # combine the two
+    product_list_add = product_list_add + procd_files
     product_inventory_gone = product_inventory.copy()
 
     for uuid, product in product_inventory.items():
@@ -77,7 +86,7 @@ def check_integrity():
         search_term = 'filename:*' + filename[25:60] + '*'
         # query the ESA hub for the original product data
         total, product = hub.raw_query(search_term)
-        #return product
+        # return product
         if total is 0 or total > 1:
             # retry with a different part of the file name string
             search_term = 'filename:*' + filename[17:47] + '*'
@@ -97,7 +106,7 @@ def check_integrity():
 
         if product_info['platformname'] == 'Sentinel-2':
             file_info = list(Path(DATA_PATH + '/' + filename).glob('*MTD*'))
-            # NOTE: this relies on the xml info file structure remaining constant
+            # NOTE: this relies on xml info file structure remaining constant
             with open(file_info[0], 'r') as read_in:
                 file_info_tree = ET.parse(read_in)
                 root = file_info_tree.getroot()
@@ -129,7 +138,7 @@ def check_integrity():
         product_info['downloadlink'] = None
         product_info['filename'] = filename
 
-        newid = uuid + '-user'
+        newid = _get_new_id(uuid) # noqa
 
         return newid, product_info
 
@@ -158,7 +167,7 @@ def check_integrity():
         total, product = hub.raw_query(search_term)
         if total is 0:  # assume it is a user processed file
             newid, product_info = handle_user_prd(filename)
-        if total is 1: # unique product found
+        if total is 1:  # unique product found
             for uuid in product:
                 newid = uuid
                 product_info = product[uuid]
@@ -170,7 +179,9 @@ def check_integrity():
         new_products[newid] = product_info
 
     for uuid in new_products:
-        product_inventory[uuid] = new_products[uuid]
+        if uuid in product_inventory:
+            new_uuid = _get_new_uuid(uuid)
+        product_inventory[new_uuid] = new_products[uuid]
 
     _save_product_inventory(product_inventory)
 
@@ -233,15 +244,6 @@ def add_new_products(new_products: dict):
         List of strings containing the UUIDs of the products that have been
         successfully added to the inventory."""
 
-    def get_new_uuid(uuid):
-        # Produces a new uuid
-        if 'user' not in uuid:
-            return uuid + '-user'
-        if uuid[-1].isdigit():  # if already numbered version
-            num = int(uuid[-1]) + 1
-            return uuid[:-1] + str(num)
-        return uuid + '1'
-
     product_inventory = _get_inventory()
     added_uuids = []
 
@@ -253,9 +255,12 @@ def add_new_products(new_products: dict):
                       " present in the product inventory."
                       " - Skipping"
                       "".format(new_products[uuid]['identifier'],
-                                             uuid))
+                                uuid))
                 continue
-            new_uuid = get_new_uuid(uuid)
+            else:
+                # product is a processed file
+                new_products[uuid]['origin'] = uuid
+            new_uuid = _get_new_uuid(uuid)
         product_inventory[new_uuid] = new_products[uuid]
         added_uuids.append(new_uuid)
 

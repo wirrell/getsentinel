@@ -239,6 +239,7 @@ class ProductQueryParams:
                         producttype=False,
                         mode=False,
                         polarisation=False,
+                        orbitdirection=False,
                         resolution=False,
                         cloudcoverlimit=False):
         """Sets product search the satellite type and details.
@@ -270,6 +271,9 @@ class ProductQueryParams:
             Current S1 polarisations supported: 'HH', 'VV', 'HV', 'VH',
             'HH HV', 'VV VH'
             Not supported for S2
+        orbitdirection : str, optional
+            S1 parameter for orbit direction: 'Ascending' or 'Descending'
+            Not supported for S2
         resolution : str, optional
             Current S1 resolutions supported: F, H, M
             Not supported for S2
@@ -285,10 +289,12 @@ class ProductQueryParams:
                              " 'S2') products are currently supported.")
 
         if sat is 'S2':
-            if producttype or mode or resolution or polarisation:
+            if (producttype or mode or resolution or polarisation or
+                    orbitdirection):
                 print(self.product_details.__doc__)
                 raise ValueError(" Product type, mode, polarisation, "
-                                 "resolution are only for S1 products.")
+                                 "resolution, orbitdirection are only"
+                                 " for S1 products.")
             if proclevel not in ['L1C', 'L2A', 'BEST', 'ALL']:
                 print(self.product_details.__doc__)
                 raise ValueError
@@ -312,6 +318,10 @@ class ProductQueryParams:
                                                      'HH HV', 'VV VH']:
                 print(self.product_details.__doc__)
                 raise ValueError
+            if orbitdirection and (orbitdirection
+                                   not in ['Ascending', 'Descending']):
+                print(self.product_details.__doc__)
+                raise ValueError
             if resolution and resolution not in ['F', 'H', 'M']:
                 print(self.product_details.__doc__)
                 raise ValueError
@@ -325,7 +335,8 @@ class ProductQueryParams:
         self.details = {'producttype:': producttype,
                         'sensoroperationalmode:': mode,
                         'polarisationmode:': polarisation,
-                        'resolution:': resolution}
+                        'resolution:': resolution,
+                        'orbitdirection': orbitdirection}
 
 
 class CopernicusHubConnection:
