@@ -506,7 +506,7 @@ class CopernicusHubConnection:
             response = requests.get(url,
                                     auth=(self.username, self.password),
                                     stream=True)
-            filename = downloadpath + product['identifier']
+            filename = os.path.join(downloadpath,product['identifier'])
             if response.status_code == 500:  # If no quicklook available
                 url = ('https://scihub.copernicus.eu/dhus/images/'
                        'bigplaceholder.png')
@@ -584,7 +584,7 @@ class CopernicusHubConnection:
                                 stream=True)
         filename = response.headers.get('content-disposition')
         filename = filename.split('"')[1]
-        filepath = downloadpath + filename
+        filepath = os.path.join(downloadpath,filename)
         if response.status_code == 500:
             raise FileNotFoundError('The product with UUID {0} could not be'
                                     'found.'.format(uuid))
