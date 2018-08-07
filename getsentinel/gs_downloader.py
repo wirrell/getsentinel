@@ -518,7 +518,7 @@ class CopernicusHubConnection:
             response = requests.get(url,
                                     auth=(self.username, self.password),
                                     stream=True)
-            filename = os.path.join(downloadpath,product['identifier'])
+            filename = os.path.join(downloadpath,product['identifier'])+'.jp2'
             if response.status_code == 500:  # If no quicklook available
                 url = ('https://scihub.copernicus.eu/dhus/images/'
                        'bigplaceholder.png')
