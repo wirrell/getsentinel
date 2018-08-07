@@ -38,6 +38,7 @@ Basic usage example::
 # TODO: Implement load in of ROI coordinates from geojson files.
 
 import datetime
+import os
 import xml.etree.ElementTree as ET
 import warnings
 import hashlib

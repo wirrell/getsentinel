@@ -19,6 +19,7 @@ Add extra support for manual addition of S1 files to download directory.
 """
 
 import json
+import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from .gs_config import DATA_PATH

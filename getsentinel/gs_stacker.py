@@ -25,6 +25,7 @@ Investigate doing the masking using `gdal` instead of `rasterio`.
 """
 
 from . import gs_config
+import os
 import datetime
 import subprocess
 import warnings
