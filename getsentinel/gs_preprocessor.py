@@ -126,7 +126,7 @@ def process(uuid,pipeline,inventory=None):
         # do the processing
         try:
             _process_S2(wd,fname)
-        except OSError:
+        except OSError as err:
             # in case of a crash, remove temp dir
             # and check integrity
             shutil.rmtree(wd)
@@ -386,4 +386,4 @@ def _prod_warning(uuid):
 
 # TODO implement better warnings
 def _not_processed_warning(uuid, err):
-    warnings.warn("product {} was not processed \n {}".format(uuid))
+    warnings.warn("product {} was not processed \n {}".format(uuid, err))
