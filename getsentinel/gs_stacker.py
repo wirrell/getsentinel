@@ -19,8 +19,9 @@ S1_RASTER_PATH : str
 TODO
 ----
 Implement S2 product handling.
-Implement other band_list preferences in `run` and `set_bands`
+Implement other band_list preferences in `generate_stacks` and `set_bands`
 Investigate doing the masking using `gdal` instead of `rasterio`.
+Implement geojson support
 
 """
 
@@ -176,7 +177,7 @@ class Stacker():
 
         self.band_list = [s1_band_list, s2_band_list]
 
-    def run(self):
+    def generate_stacks(self):
         """Runs the data layer extraction and stacking process.
 
         Note
@@ -185,7 +186,10 @@ class Stacker():
 
         Returns
         -------
-        None
+        dict
+            Contains all the generate `Stack` objects keyed by the names of
+            their corresponding shapefiles.
+        
 
         Raises
         ------
@@ -225,6 +229,9 @@ class Stacker():
 
         self._generate_stacks()
 
+        return self.stack_list
+
+
     def _generate_stacks(self):
         """Make the layers uniform and combine them into numpy array stacks."""
 
@@ -236,12 +243,10 @@ class Stacker():
             layers_ = self._pad_layers(layers_)
             stack = np.stack(layers_, axis=0)
             stack = np.ma.masked_where(stack==0, stack)
-            stack = InfoLayer(stack, info_, transforms_, roi)
+            stack = Stack(stack, info_, transforms_, roi)
             # mask all the zero values in the output array sounding the
             # region of interest
             self.stack_list[roi] = stack
-
-        self._generated = True
 
     def _pad_layers(self, layers):
         """Pads the layers with zeroes so they conform to a uniform shape."""
@@ -356,7 +361,7 @@ class Stacker():
 
                 # out_image is 3D when ie. [2, X, Y] and we only need the 2D
                 # either vv or vh
-                layer = InfoLayer(out_image[layer_number], info, out_transform)
+                layer = Stack(out_image[layer_number], info, out_transform)
                 date = product['beginposition']
                 self._layerbank[ROI][date] = layer
 
@@ -434,7 +439,7 @@ class Stacker():
         self.ROIs = ROIs
 
 
-class InfoLayer(np.ndarray):
+class Stack(np.ndarray):
     """Used to add an attribute to an existing numpy array.
     adapted from:
         https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html
@@ -444,7 +449,7 @@ class InfoLayer(np.ndarray):
     Parameters
     ----------
     input_array : numpy.ndarray
-        An existing array that is to be converted to an `InfoLayer`.
+        An existing array that is to be converted to a `Stack`.
     info : list, str
         `list` of `str` or just `str` that contains info on each layer such as
         UUID of origin, platform, date of capture, band, and processing level.
@@ -452,7 +457,7 @@ class InfoLayer(np.ndarray):
         the out_transform output from the `mask` function of the `rasterio`
         library.
     name : str, optional
-        The name of the InfoLayer. Used in the final array stacks to name the
+        The name of the Stack. Used in the final array stacks to name the
         stacks with the `str` of their corresponding shapefile names.
 
     Attributes
