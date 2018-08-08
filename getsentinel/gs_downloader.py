@@ -19,7 +19,7 @@ Basic usage example::
     query = gs_downloader.ProductQueryParams()
     query.acquisition_date_range(start_date, end_date)
     query.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
-    query.coords_from_file(shape_file, '.shp', 'BNG')
+    query.coords_from_file(shape_file)
 
     # initialise the hub connection
     hub = gs_downloader.CopernicusHubConnection()
@@ -35,7 +35,6 @@ Basic usage example::
 
 """
 
-# TODO: Implement load in of ROI coordinates from geojson files.
 
 import datetime
 import xml.etree.ElementTree as ET
@@ -46,6 +45,7 @@ import zipfile
 import requests
 from clint.textui import progress
 import shapefile
+import geojson
 from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
 from osgeo import ogr, osr
@@ -145,11 +145,11 @@ class ProductQueryParams:
 
         """
 
-        # TODO: Implement reading in of coords from geojson files.
+        file_type = pathlib.Path(filepath).suffix
 
-        if pathlib.Path(filepath).suffix != '.shp':
-            raise NotImplementedError('Currently only .shp files are'
-                                      'supported.')
+        if file_type not in ['.shp', '.geojson']:
+            raise NotImplementedError('Currently only .shp and .geojson files'
+                                      ' are supported.')
 
         # set WGS84 spatial ref
         wgs84 = osr.SpatialReference()
@@ -158,13 +158,27 @@ class ProductQueryParams:
         shp = ogr.Open(filepath)
         layer = shp.GetLayer()
         shp_crs = layer.GetSpatialRef()
+
         x_coords = []
         y_coords = []
-        shp = shapefile.Reader(filepath)
-        for shape in shp.shapes():  # extract all points from all shapes
-            for point in shape.points:  # in the file
-                x_coords.append(point[0])
-                y_coords.append(point[1])
+
+        if file_type == '.shp':
+            shp = shapefile.Reader(filepath)
+            for shape in shp.shapes():  # extract all points from all shapes
+                for point in shape.points:  # in the file
+                    x_coords.append(point[0])
+                    y_coords.append(point[1])
+
+        if file_type == '.geojson':
+            with open(filepath, 'r') as f:
+                gjson = geojson.load(f)
+                features = gjson['features']
+                for feature in features:
+                    coords = geojson.utils.coords(feature)
+                    for coord in coords:
+                        x_coords.append(coord[0])
+                        y_coords.append(coord[1])
+
         coords = list(zip(x_coords, y_coords))
         m = MultiPoint(coords)  # import into shapely
         shape_extents = m.convex_hull  # gets polygon that encomps all points
