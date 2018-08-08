@@ -145,9 +145,13 @@ def _process_S2(temp_directory,filename):
     """
     takes a product dictionary and processes file with sen2cor
     """
-    p1 = subprocess.Popen([SEN2COR_ROOT_PATH,filename],cwd=temp_directory)
-    p1.wait()
-
+    p1 = subprocess.Popen([SEN2COR_ROOT_PATH,filename],
+                            cwd=temp_directory,
+                            stderr=subprocess.PIPE)
+    response = p1.wait()
+    if response > 0:
+        string = p1.stderr.read().decode('utf')
+        raise OSError('Sen2Cor Error: {}'.format(string))
     return None
 
 def _generate_temp_copy(uuid,inventory=None):
