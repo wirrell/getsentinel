@@ -350,7 +350,7 @@ class ProductQueryParams:
                         'sensoroperationalmode:': mode,
                         'polarisationmode:': polarisation,
                         'resolution:': resolution,
-                        'orbitdirection': orbitdirection}
+                        'orbitdirection:': orbitdirection}
 
 
 class CopernicusHubConnection:
