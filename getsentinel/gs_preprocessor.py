@@ -114,7 +114,13 @@ def process(uuid,pipeline,inventory=None):
         #raise NotImplementedError('No support for S2 yet')
         wd, fname = _generate_temp_copy(uuid)
         # do the processing
-        _process_S2(wd,fname)
+        try:
+            _process_S2(wd,fname)
+        except:
+            # in case of a crash, remove temp dir
+            # and check integrity
+            shutil.rmtree(wd)
+            return gs_localmanager.check_integrity()
         # move desired folder to data
         files = os.listdir(wd)
 
