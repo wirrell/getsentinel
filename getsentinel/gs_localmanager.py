@@ -19,6 +19,7 @@ Add extra support for manual addition of S1 files to download directory.
 """
 
 import json
+import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from .gs_config import DATA_PATH
@@ -133,7 +134,6 @@ def check_integrity():
                         if 'tileid' not in product_info:
                             # hack to pull out tileid
                             tileid = child[0][0][0].text[-13:-8]
-                            print(tileid)
                             product_info['tileid'] = tileid
         product_info['downloadlink'] = None
         product_info['filename'] = filename
@@ -171,6 +171,7 @@ def check_integrity():
             for uuid in product:
                 newid = uuid
                 product_info = product[uuid]
+                product_info['filename'] = filename
         if total > 1:
             raise RuntimeError("Could not find a unique matching product"
                                " in the ESA database for filename: \n"
