@@ -25,6 +25,7 @@ Investigate doing the masking using `gdal` instead of `rasterio`.
 """
 
 from . import gs_config
+import os
 import datetime
 import subprocess
 import warnings
@@ -67,7 +68,7 @@ class Stacker():
         products passed to the `Stacker` but generated outside of this time
         period will be excluded from the extraction process.
     end_date : datetime.date
-        The end of the time period used for data extraction. Inclusive. 
+        The end of the time period used for data extraction. Inclusive.
 
     Attributes
     ----------
@@ -335,7 +336,7 @@ class Stacker():
             if band is 'vh':
                 layer_number = 1
 
-        proc_file = gs_config.DATA_PATH + filename
+        proc_file = os.path.join(gs_config.DATA_PATH,filename)
 
         # get the shape the reside within this product
         associated_ROIs = self.job_list[uuid]

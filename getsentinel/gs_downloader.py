@@ -38,6 +38,7 @@ Basic usage example::
 # TODO: Implement load in of ROI coordinates from geojson files.
 
 import datetime
+import os
 import xml.etree.ElementTree as ET
 import warnings
 import hashlib
@@ -517,7 +518,7 @@ class CopernicusHubConnection:
             response = requests.get(url,
                                     auth=(self.username, self.password),
                                     stream=True)
-            filename = downloadpath + product['identifier']
+            filename = os.path.join(downloadpath,product['identifier'])+'.jp2'
             if response.status_code == 500:  # If no quicklook available
                 url = ('https://scihub.copernicus.eu/dhus/images/'
                        'bigplaceholder.png')
@@ -595,7 +596,7 @@ class CopernicusHubConnection:
                                 stream=True)
         filename = response.headers.get('content-disposition')
         filename = filename.split('"')[1]
-        filepath = downloadpath + filename
+        filepath = os.path.join(downloadpath,filename)
         if response.status_code == 500:
             raise FileNotFoundError('The product with UUID {0} could not be'
                                     'found.'.format(uuid))

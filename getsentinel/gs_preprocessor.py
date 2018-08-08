@@ -97,14 +97,24 @@ def process(uuid,pipeline,inventory=None):
     # currently has explicit coding of pipeline, in case more added
     if pipeline == 'S1_UTM':
         #raise NotImplementedError('No support for S1 yet')
-        new_fnames = _process_S1(uuid)
+        try:
+            new_fnames = _process_S1(uuid)
+        except OSError as err:
+            _not_processed_warning(uuid,err)
+            return gs_localmanager.check_integrity()
+
         for f in new_fnames:
             add_S1_processed_to_inventory(uuid,f,pipeline)
         # not sure if necessary, but seems a good time to do an integ checking
         return gs_localmanager.check_integrity()
 
     if pipeline == 'S1_WGS84':
-        new_fnames = _process_S1_WGS84(uuid)
+        try:
+            new_fnames = _process_S1_WGS84(uuid)
+        except OSError as err:
+            _not_processed_warning(uuid,err)
+            return gs_localmanager.check_integrity()
+
         for f in new_fnames:
             add_S1_processed_to_inventory(uuid,f, pipeline)
         # not sure if necessary, but seems a good time to do an integ checking
@@ -114,7 +124,14 @@ def process(uuid,pipeline,inventory=None):
         #raise NotImplementedError('No support for S2 yet')
         wd, fname = _generate_temp_copy(uuid)
         # do the processing
-        _process_S2(wd,fname)
+        try:
+            _process_S2(wd,fname)
+        except OSError as err:
+            # in case of a crash, remove temp dir
+            # and check integrity
+            shutil.rmtree(wd)
+            _not_processed_warning(uuid, err)
+            return gs_localmanager.check_integrity()
         # move desired folder to data
         files = os.listdir(wd)
 
@@ -139,9 +156,13 @@ def _process_S2(temp_directory,filename):
     """
     takes a product dictionary and processes file with sen2cor
     """
-    p1 = subprocess.Popen([SEN2COR_ROOT_PATH,filename],cwd=temp_directory)
-    p1.wait()
-
+    p1 = subprocess.Popen([SEN2COR_ROOT_PATH,filename],
+                            cwd=temp_directory,
+                            stderr=subprocess.PIPE)
+    response = p1.wait()
+    if response > 0:
+        string = p1.stderr.read().decode('utf')
+        raise OSError('Sen2Cor Error: {}'.format(string))
     return None
 
 def _generate_temp_copy(uuid,inventory=None):
@@ -203,7 +224,10 @@ def _process_S1_WGS84(uuid, inventory=None):
     command = '{0} {1} {2} {3}'.format(*args)
     # run process
     p1 = subprocess.Popen(command,shell=True)
-    p1.wait()
+    response = p1.wait()
+    if response > 0:
+        string = p1.stderr.read().decode('utf')
+        raise OSError('SNAP Error: {}'.format(string))
     return outnames
 
 def _make_WGS84_geotiff_inputs(fname):
@@ -239,7 +263,10 @@ def _process_S1(uuid,inventory=None):
         command = '{0} {1} {2} {3} {4} {5}'.format(*args)
         # run process
         p1 = subprocess.Popen(command,shell=True)
-        p1.wait()
+        response = p1.wait()
+        if response > 0:
+            string = p1.stderr.read().decode('utf')
+            raise OSError('SNAP Error: {}'.format(string))
         return outnames
 
     elif len(grid_zones) == 2:
@@ -356,3 +383,7 @@ def _mgrs_to_zone(square):
 def _prod_warning(uuid):
     warnings.warn("product {} is not a recognised data\
     type and cannot be processed".format(uuid))
+
+# TODO implement better warnings
+def _not_processed_warning(uuid, err):
+    warnings.warn("product {} was not processed \n {}".format(uuid, err))
