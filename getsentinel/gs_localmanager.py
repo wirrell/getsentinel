@@ -26,7 +26,7 @@ from .gs_config import DATA_PATH
 from . import gs_downloader
 
 
-def _get_new_id(uuid):
+def _get_new_uuid(uuid):
     # Produces a new uuid
     if 'user' not in uuid:
         return uuid + '-user'
@@ -138,7 +138,7 @@ def check_integrity():
         product_info['downloadlink'] = None
         product_info['filename'] = filename
 
-        newid = _get_new_id(uuid) # noqa
+        newid = _get_new_uuid(uuid) # noqa
 
         return newid, product_info
 
@@ -183,10 +183,10 @@ def check_integrity():
         new_products[newid] = product_info
 
     for uuid in new_products:
-        newid = uuid
+        new_uuid = uuid
         if uuid in product_inventory:
-            newid = _get_new_uuid(uuid)
-        product_inventory[newid] = new_products[uuid]
+            new_uuid = _get_new_uuid(uuid)
+        product_inventory[new_uuid] = new_products[uuid]
 
     _save_product_inventory(product_inventory)
 
