@@ -172,6 +172,9 @@ def check_integrity():
                 newid = uuid
                 product_info = product[uuid]
                 product_info['filename'] = filename
+                product_info['format'] = product_name.split('.')[-1]
+                byte_size = Path(DATA_PATH).joinpath(filename).stat().st_size
+                product_info['size'] = str(byte_size * 0.000000000125) + ' GB'  # to GB
         if total > 1:
             raise RuntimeError("Could not find a unique matching product"
                                " in the ESA database for filename: \n"
@@ -180,6 +183,7 @@ def check_integrity():
         new_products[newid] = product_info
 
     for uuid in new_products:
+        newid = uuid
         if uuid in product_inventory:
             newid = _get_new_uuid(uuid)
         product_inventory[newid] = new_products[uuid]
@@ -224,7 +228,7 @@ def get_product_inventory():
 def _save_product_inventory(product_inventory):
     """Writes the updated product inventory to the associated .json file."""
 
-    product_inventory_path = Path(DATA_PATH + '/product_inventory.json')
+    product_inventory_path = Path(DATA_PATH).joinpath('product_inventory.json')
     product_inventory_path.touch(exist_ok=True)
     with product_inventory_path.open(mode='w') as write_out:
         json.dump(product_inventory, write_out)
