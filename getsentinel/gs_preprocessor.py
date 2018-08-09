@@ -75,7 +75,7 @@ def get_processable_files(inventory=None, ignore_processed=True):
         out[uuid] = 'S2'
 
     for uuid in S1_proc_list:
-        out[uuid] = 'S1'
+        out[uuid] = 'S1_UTM'
 
     return out
 
