@@ -181,8 +181,8 @@ def check_integrity():
 
     for uuid in new_products:
         if uuid in product_inventory:
-            new_uuid = _get_new_uuid(uuid)
-        product_inventory[new_uuid] = new_products[uuid]
+            newid = _get_new_uuid(uuid)
+        product_inventory[newid] = new_products[uuid]
 
     _save_product_inventory(product_inventory)
 
