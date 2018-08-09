@@ -26,7 +26,7 @@ from .gs_config import DATA_PATH
 from . import gs_downloader
 
 
-def _get_new_uuid(uuid):
+def _get_new_id(uuid):
     # Produces a new uuid
     if 'user' not in uuid:
         return uuid + '-user'
