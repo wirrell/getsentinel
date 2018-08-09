@@ -31,7 +31,7 @@ def get_processable_files(inventory=None, ignore_processed=True):
 
     # apply set logic
     unprocessed_S2L1C = set()
-    #unprocessed_S2L2A = set()
+    unprocessed_S2L2A = set()
     unprocessed_S1 = set()
     processed_S2L2A = set()
     processed_S1 = set()
@@ -44,7 +44,7 @@ def get_processable_files(inventory=None, ignore_processed=True):
 
         elif product['producttype'] == 'S2MSI2A' and\
         product['userprocessed'] == False:
-            #unprocessed_S2L2A.add(uuid)
+            unprocessed_S2L2A.add(uuid)
             pass
 
         elif product['producttype'] == 'S2MSI2A' and\
@@ -194,7 +194,7 @@ def add_S2_processed_to_inventory(uuid,new_file_name, pipeline, inventory=None):
     new_entry = inventory[uuid]
 
     # update process level to 'S2MSI1C'
-    new_entry['producttype'] = 'S2MSI1C'
+    new_entry['producttype'] = 'S2MSI2A'
     new_entry['processinglevel'] = 'Level-2A'
 
     # update new_file_name
