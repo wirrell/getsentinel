@@ -13,9 +13,7 @@ Example structure:
     s1graph_path=/path/to/s1processing/xmlfiles
     s2graph_path=/path/to/s2processing/xmlsfiles
 
-TODO
-----
-Implement above new config.txt format"""
+"""
 
 import os
 import pathlib
@@ -130,7 +128,7 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks, s1graphs, s2graphs):
 
 
 INSTALL_PATH = os.path.dirname(os.path.realpath(__file__))
-CONFIG_PATH = os.path.join(INSTALL_PATH,'gs_config.txt')
+CONFIG_PATH = os.path.join(INSTALL_PATH, 'gs_config.txt')
 
 _config_info = _get_config()
 
