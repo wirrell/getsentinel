@@ -26,9 +26,7 @@ Implement geojson support
 """
 
 from . import gs_config
-import os
 import datetime
-import subprocess
 import warnings
 from pathlib import Path
 import numpy as np
@@ -36,7 +34,6 @@ import shapely
 import shapefile
 import rasterio
 import rasterio.mask
-import rasterio.errors as re
 from osgeo import osr, ogr
 
 
@@ -108,7 +105,8 @@ class Stacker():
         self.shape_files = shape_files
         self.start_date = start_date
         self.end_date = end_date
-        # filters the product list and generates the shapely objects for the products
+        # filters the product list and generates the shapely objects
+        # for the products
         self.products, self.product_boundaries = self._gen_product_shapes(
             product_list)
         # generates the shapely objects for the ROIs
@@ -190,7 +188,7 @@ class Stacker():
         dict
             Contains all the generate `Stack` objects keyed by the names of
             their corresponding shapefiles.
-        
+
 
         Raises
         ------
@@ -232,7 +230,6 @@ class Stacker():
 
         return self.stack_list
 
-
     def _generate_stacks(self):
         """Make the layers uniform and combine them into numpy array stacks."""
 
@@ -243,7 +240,7 @@ class Stacker():
                            sorted(layers.items())]
             layers_ = self._pad_layers(layers_)
             stack = np.stack(layers_, axis=0)
-            stack = np.ma.masked_where(stack==0, stack)
+            stack = np.ma.masked_where(stack == 0, stack)
             stack = Stack(stack, info_, transforms_, roi)
             # mask all the zero values in the output array sounding the
             # region of interest
@@ -326,7 +323,7 @@ class Stacker():
                 'datetime': product['beginposition'],
                 'band': band,
                 'processing': product['producttype']}
-        identifier = product['identifier']
+
         if platform == 'Sentinel-2':
             raise NotImplementedError('S2 support not yet implemented.')
 
@@ -334,14 +331,14 @@ class Stacker():
             if filename.endswith('.SAFE'):
                 raise RuntimeError("Product {0} is an unprocessed Sentinel-1 "
                                    "file and cannot be stacked.".format(
-                                   filename))
+                                    filename))
             info['mode'] = product['sensoroperationalmode']
             if band is 'vv':
                 layer_number = 0
             if band is 'vh':
                 layer_number = 1
 
-        proc_file = os.path.join(gs_config.DATA_PATH,filename)
+        proc_file = Path(gs_config.DATA_PATH).joinpath(filename)
 
         # get the shape the reside within this product
         associated_ROIs = self.job_list[uuid]
@@ -399,11 +396,10 @@ class Stacker():
                 product_boundaries[uuid] = product_shape
                 filtered_products[uuid] = product
 
-
         return filtered_products, product_boundaries
 
-    def _gen_ROI_shapes(self, shape_files):
-        """Loads shapely objects from given shape files."""
+    def _gen_ROI_shapes(self, geo_files):
+        """Loads shapely objects from given geo files."""
 
         # set WGS84 spatial ref
         wgs84 = osr.SpatialReference()
@@ -411,26 +407,50 @@ class Stacker():
 
         ROIs = {}  # stores the referenced shapely objects use for masking
 
-        for shape_file in shape_files:
-            filename = shape_file.split('/')[-1][:-4]
-            shp = ogr.Open(shape_file)
-            layer = shp.GetLayer()
-            shp_crs = layer.GetSpatialRef()
-            if shp_crs == wgs84:  # if already WGS84 - skip
-                continue
-            transform = osr.CoordinateTransformation(shp_crs, wgs84)
+        for geo_file in geo_files:
+            geo_file = Path(geo_file)
+            suffix = geo_file.suffix
+            if suffix not in ['.shp', '.geojson']:
+                raise TypeError("File {0} not supported by gs_stacker.Stacker."
+                                " Only .shp and .geojson files are currently"
+                                " supported for defining masks / ROIs".format(
+                                    geo_file))
+            filename = geo_file.stem
             x_coords = []
             y_coords = []
-            shp = shapefile.Reader(shape_file)
-            for shape in shp.shapes():  # extract all points from all shapes
-                for point in shape.points:  # in the file
-                    x_coords.append(point[0])
-                    y_coords.append(point[1])
-            coords = list(zip(x_coords, y_coords))
-            m = shapely.geometry.MultiPoint(coords)  # import into shapely
-            extents = m.convex_hull  # gets polygon that encomps all points
+            shp = ogr.Open(str(geo_file))
+            if shp.GetLayerCount() > 1:
+                warnings.warn("geo-referenced files (.shp, .geojson etc)"
+                              " with more than one layer / feature will have"
+                              " the coordinates of all layers / features used"
+                              " to generate a mask for the Sentinel file.")
+            layer = shp.GetLayer()
+            shp_crs = layer.GetSpatialRef()
+            transform = osr.CoordinateTransformation(shp_crs, wgs84)
+
+            if suffix == '.shp':
+                shp = shapefile.Reader(geo_file)
+                # extract all points from all shapes
+                for shape in shp.shapes():
+                    for point in shape.points:  # in the file
+                        x_coords.append(point[0])
+                        y_coords.append(point[1])
+                coords = list(zip(x_coords, y_coords))
+                m = shapely.geometry.MultiPoint(coords)  # import into shapely
+                extents = m.convex_hull  # gets polygon that encomps all points
+                shape_ = ogr.CreateGeometryFromWkt(extents.wkt)
+
+            if suffix == '.geojson':
+                geometries = []
+                for layer in shp:
+                    for i in range(layer.GetFeatureCount()):
+                        feature = layer.GetFeature(i)
+                        geometries.append(feature.geometry())
+                shape_ = geometries[0]
+                for i in range(1, len(geometries)):
+                    shape_ = shape_.AddGeometry(geometries[i])
+
             # now reproject in ogr
-            shape_ = ogr.CreateGeometryFromWkt(extents.wkt)
             shape_.Transform(transform)
             # back to shapely for boundary comparison during run()
             shape = shapely.wkt.loads(shape_.ExportToWkt())
@@ -474,7 +494,7 @@ class Stack(np.ndarray):
 
     def __new__(cls, input_array, info, transform, name=False):
         obj = np.asarray(input_array).view(cls)
-        obj = np.ma.masked_where(obj==0, obj)
+        obj = np.ma.masked_where(obj == 0, obj)
         obj.info = info
         obj.transform = transform
         if name:
