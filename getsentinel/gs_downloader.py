@@ -611,20 +611,26 @@ class CopernicusHubConnection:
                                 stream=True)
         filename = response.headers.get('content-disposition')
         filename = filename.split('"')[1]
-        filepath = os.path.join(downloadpath, filename)
+        downloadpath = pathlib.Path(downloadpath)
+        filepath = pathlib.Path.joinpath(downloadpath, filename)
         if response.status_code == 500:
             raise FileNotFoundError('The product with UUID {0} could not be'
                                     'found.'.format(uuid))
-        with open(filepath, 'wb') as handle:
-            filelength = int(response.headers.get('content-length'))
-            print('Downloading product: \n {0}  \nwith UUID:'
-                  '{1}'.format(filename,
-                               uuid))
-            for chunk in progress.bar(response.iter_content(chunk_size=1024),
-                                      expected_size=(filelength/1024) + 1):
-                if chunk:  # filter out keep-alive new chunks
-                    handle.write(chunk)
-                    handle.flush()
+        try:
+            with filepath.open('wb') as handle:
+                filelength = int(response.headers.get('content-length'))
+                print('Downloading product: \n {0}  \nwith UUID:'
+                      '{1}'.format(filename,
+                                   uuid))
+                for chunk in progress.bar(
+                    response.iter_content(chunk_size=1024),
+                    expected_size=(filelength/1024) + 1):
+                    if chunk:  # filter out keep-alive new chunks
+                        handle.write(chunk)
+                        handle.flush()
+        except KeyboardInterrupt:
+            filepath.unlink()
+            exit()
 
         # check the download was successful using MD5 Checksum
         if verify:
@@ -717,7 +723,7 @@ class CopernicusHubConnection:
 
                     if tile == tile2 and sensingtime == sensingtime2:
                         if product['processinglevel'] == 'Level-1C':
-                            if 'Level2-A' in product2['processinglevel']:
+                            if 'Level-2A' in product2['processinglevel']:
                                 productlist.pop(uuid, None)
                             else:
                                 proc_fail_warning(product['identifier'],
@@ -853,6 +859,8 @@ def filter_overlaps(product_list,
 
     encompassing_products = []
 
+    num_products_passed = len(product_list)
+
     for uuid, product in product_list.copy().items():
         # format the footprint string for use with pyshp
         footprint = loads(product['footprint'])  # load in via shapely
@@ -912,6 +920,11 @@ def filter_overlaps(product_list,
                       product2['polarisationmode'] == polarisation): # noqa
                         product_list.pop(uuid2, None)
                         break
+
+    products_removed = num_products_passed - len(product_list)
+
+    print("filter_overlaps : {0} product(s) filtered"
+          " out.".format(products_removed))
 
     return product_list
 
