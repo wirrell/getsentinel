@@ -10,18 +10,11 @@ Note
 ----
 Currently only handles Sentinel-1 products.
 
-Attributes
-----------
-S1_RASTER_PATH : str
-    Local path within a Sentinel-1 .SAFE file to the measurement rasters.
-
-
 TODO
 ----
+Implement weather concealment checking for ROIs specific products.
 Implement S2 product handling.
-Implement other band_list preferences in `generate_stacks` and `set_bands`
 Investigate doing the masking using `gdal` instead of `rasterio`.
-Implement geojson support
 
 """
 
@@ -35,9 +28,6 @@ import shapefile
 import rasterio
 import rasterio.mask
 from osgeo import osr, ogr
-
-
-S1_RASTER_PATH = '/measurement/'  # where .tiff files reside in S1 .SAFE
 
 
 class Stacker():
@@ -57,10 +47,10 @@ class Stacker():
     ----------
     product_list : dict
         Contains the Sentinel products containing data relevant to the
-        area coverered by the passed shapefiles.
-    shape_files : list
+        area coverered by the passed shapefiles or geojsons.
+    geo_files : list
         A `list` of `str` containing the paths to all of the relevant
-        shapefiles.
+        shapefiles or geojsons.
     start_date : datetime.date
         The start of the time period used for data extraction. Any Sentinel
         products passed to the `Stacker` but generated outside of this time
@@ -76,8 +66,8 @@ class Stacker():
     product_boundaries : dict
         Contains `shapely.geometry.Polygon` objects describing the boundaries
         of each of the products in `products`.
-    shape_files : list
-        Contains a copy of `shape_files` passed to the object.
+    geo_files : list
+        Contains a copy of `geo_files` passed to the object.
     start_date : datetime.date
         A copy of `start_date` passed to the object.
     end_date : datetime.date
@@ -98,11 +88,11 @@ class Stacker():
 
     def __init__(self,
                  product_list,
-                 shape_files,
+                 geo_files,
                  start_date,
                  end_date):
 
-        self.shape_files = shape_files
+        self.geo_files = geo_files
         self.start_date = start_date
         self.end_date = end_date
         # filters the product list and generates the shapely objects
@@ -110,29 +100,29 @@ class Stacker():
         self.products, self.product_boundaries = self._gen_product_shapes(
             product_list)
         # generates the shapely objects for the ROIs
-        self._gen_ROI_shapes(shape_files)
+        self._gen_ROI_shapes(geo_files)
         # holds the uuids and corresponding shape files within each product
         self.job_list = self._allocate_ROIs()
         # lists all the names of the shapefiles
-        self.stack_list = {name: None for name in self.ROIs}
+        self.stack_list = {name: {} for name in self.ROIs}
         # temporary store for the layers before final combination
         self._layerbank = {name: {} for name in self.stack_list}
         self.band_list = False
         self._generated = False
 
-    def __getitem__(self, key):
-        """Implements dict like functionality."""
-
-        if not self._generated:
-            print("Please call the run method first.")
-            return None
-
-        return self.stack_list[key]
-
-    def set_bands(self, s1_band_list=[], s2_band_list=[]):
+    def set_bands(self, s1_band_list=[], s2_band_list=[], s2_resolution=False):
         """Sets the attribute `band_list` to the passed bands.
 
         Valid bands for S1 GRD products there are: 'vv', 'vh'.
+        Valid bands for S2 L2A products are: 
+                          '10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
+                                 'WVP'],
+                          '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI', 
+                                 'WVP'],
+                          '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                                 'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
+                                 'TCI', 'WVP']}
 
         Note
         ----
@@ -148,6 +138,9 @@ class Stacker():
             `list` of `str` containing the S2 bands the user wants extract from
             the S2 products passed to `Stacker`.
             Required form : ['band1', 'band2', ... ]
+        s2_resolution : int, optional
+            Choose the band resolution of the Sentinel-2 bands. Can be `10`,
+            `20`, or `60`.
 
         Returns
         -------
@@ -162,8 +155,26 @@ class Stacker():
 
         # TODO: implement S2 bands as valid
 
+        if s2_band_list and s2_resolution not in [10, 20, 60]:
+            RuntimeError("You must specify a resolution of int 10, 20, or 60"
+                         " when stacking Sentinel-2 products.")
+
         s1_valid_bands = ['vv', 'vh']
-        s2_valid_bands = []
+        s2_valid_bands = {'10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
+                                 'WVP'],
+                          '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI', 
+                                 'WVP'],
+                          '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                                 'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
+                                 'TCI', 'WVP']}
+        s2_valid_bands = s2_valid_bands[str(s2_resolution)]
+
+        if s1_band_list and s2_resolution is not 10:
+            warnings.warn("Sentinel-1 GRD products are 10m resolution pixels."
+                          " Combining Sentinel-2 products with resolution of"
+                          " 20m or 60m with Sentinel-1 products will result in"
+                          " incoherent data output at the per-pixel level.")
 
         for band in s1_band_list:
             if band not in s1_valid_bands:
@@ -174,7 +185,16 @@ class Stacker():
                 print(self.set_bands.__doc__)
                 raise ValueError('Passed bands not in valid band list.')
 
+        bands = s1_band_list + s2_band_list
+
+        for roi in self._layerbank:
+            for band in bands:
+                self._layerbank[roi][band] = {}
+
         self.band_list = [s1_band_list, s2_band_list]
+
+        if s2_resolution:
+            self.s2_res = s2_resolution
 
     def generate_stacks(self):
         """Runs the data layer extraction and stacking process.
@@ -233,18 +253,29 @@ class Stacker():
     def _generate_stacks(self):
         """Make the layers uniform and combine them into numpy array stacks."""
 
-        for roi, layers in self._layerbank.items():
-            layers_ = [layer for date, layer in sorted(layers.items())]
-            info_ = [layer.info for date, layer in sorted(layers.items())]
-            transforms_ = [layer.transform for date, layer in
-                           sorted(layers.items())]
-            layers_ = self._pad_layers(layers_)
-            stack = np.stack(layers_, axis=0)
-            stack = np.ma.masked_where(stack == 0, stack)
-            stack = Stack(stack, info_, transforms_, roi)
-            # mask all the zero values in the output array sounding the
-            # region of interest
-            self.stack_list[roi] = stack
+        for roi, bands in self._layerbank.items():
+            print(bands)
+            for band, layers in bands.items():
+                layers_ = [layer for date, layer in sorted(layers.items())]
+                info_ = [layer.info for date, layer in sorted(layers.items())]
+                print(layers_)
+                transforms_ = [layer.transform for date, layer in
+                               sorted(layers.items())]
+                if band == 'TCI':  # TCI images are multi-layer
+                    # and requires handling for 3 channel of TCI images
+                    new_layers = []
+                    for layer in layers_:
+                        layer = self._pad_layers(layer)
+                        new_layers.append(layer)
+                    layers_ = new_layers
+                else:
+                    layers_ = self._pad_layers(layers_)
+                stack = np.stack(layers_, axis=0)
+                stack = np.ma.masked_where(stack == 0, stack)
+                stack = Stack(stack, info_, transforms_, roi)
+                # mask all the zero values in the output array sounding the
+                # region of interest
+            self.stack_list[roi][band] = stack
 
     def _pad_layers(self, layers):
         """Pads the layers with zeroes so they conform to a uniform shape."""
@@ -301,6 +332,13 @@ class Stacker():
 
         return padded_layers
 
+    def check_weather(cloud=False, snow=False):
+        #TODO: write user facing weather checking method
+
+    def _weather_concealment(mask, tilepath, threshold):
+        #TODO: write check for weather concealment using threshold likelihood.
+        pass
+
     def _extract_data(self, uuid: str, band: str):
         """
         Checks the joblist to see what ROIs need to be postage stamped out of
@@ -309,11 +347,6 @@ class Stacker():
         Saves the product metadata to each ROI's extracted numpy array and
         add it to the corresponding list in the layer_stack.
         """
-
-        # TODO: talk to Joe about the layout for this, see suggestions paper
-        # notes
-
-        # get the path to the processed .tif
 
         product = self.products[uuid]
         platform = product['platformname']
@@ -325,8 +358,22 @@ class Stacker():
                 'processing': product['producttype']}
 
         if platform == 'Sentinel-2':
-            raise NotImplementedError('S2 support not yet implemented.')
-
+            data_path = Path(gs_config.DATA_PATH)
+            file_path = data_path.joinpath(filename)
+            granule = file_path.joinpath('GRANULE')
+            for child in granule.iterdir():
+                # should be only one sub-dir in the GRANULE dir
+                if child.is_dir():
+                    tile = child
+                    break
+            img_data = child.joinpath('IMG_DATA')
+            ext = 'R{0}m'.format(str(self.s2_res))
+            raster_dir = img_data.joinpath(ext)
+            for child in raster_dir.iterdir():
+                if band in str(child):
+                    proc_file = child
+                    break
+            
         if platform == 'Sentinel-1':
             if filename.endswith('.SAFE'):
                 raise RuntimeError("Product {0} is an unprocessed Sentinel-1 "
@@ -338,14 +385,33 @@ class Stacker():
             if band is 'vh':
                 layer_number = 1
 
-        proc_file = Path(gs_config.DATA_PATH).joinpath(filename)
+            proc_file = Path(gs_config.DATA_PATH).joinpath(filename)
 
         # get the shape the reside within this product
         associated_ROIs = self.job_list[uuid]
 
+        def reproject_ROI(mask, epsg):
+            # Reproject the roi coords to the same crs as the raster
+            roi = mask[0]
+            wgs84 = osr.SpatialReference()
+            wgs84.ImportFromEPSG(4326)
+            raster_crs = osr.SpatialReference()
+            raster_crs.ImportFromEPSG(epsg)
+            shape_ = ogr.CreateGeometryFromWkt(roi.wkt)
+            transform = osr.CoordinateTransformation(wgs84, raster_crs)
+            shape_.Transform(transform)
+            # back to shapely
+            roi = shapely.wkt.loads(shape_.ExportToWkt())
+            return [roi]
+
+
         with rasterio.open(str(proc_file), 'r') as raster:
+            raster_epsg = raster.crs.to_epsg()
+                
             for ROI in associated_ROIs:
                 mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
+                if raster_epsg is not 4326:
+                    mask = reproject_ROI(mask, raster_epsg)
                 out_image, out_transform = rasterio.mask.mask(raster,
                                                               mask,
                                                               crop=True)
@@ -357,12 +423,23 @@ class Stacker():
                     # data they represent. Ie. the ROI is in the dead zone!
                     continue
 
-                # out_image is 3D when ie. [2, X, Y] and we only need the 2D
-                # either vv or vh
-                layer = Stack(out_image[layer_number], info, out_transform)
-                date = product['beginposition']
-                self._layerbank[ROI][date] = layer
+                if '1' in platform: 
+                    # out_image is 3D when ie. [2, X, Y] and we only need the 2D
+                    # either vv or vh
+                    if out_image.shape[0] is not 1:
+                        layer = Stack(out_image[layer_number], info,
+                                      out_transform)
+                    else:
+                        layer = Stack(out_image[0], info,
+                                      out_transform)
+                    date = product['beginposition']
+                    self._layerbank[ROI][band][date] = layer
 
+                if '2' in platform:
+                    layer = Stack(out_image, info, out_transform)
+                    date = product['beginposition']
+                    self._layerbank[ROI][band][date] = layer
+                    
     def _allocate_ROIs(self):
         """
         Checks product boundaries against ROI areas and allocates ROIs to
