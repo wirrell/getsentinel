@@ -28,15 +28,15 @@ start_season = date(2018, 5, 6)
 end_season = date(2018, 5, 8)
 ROI = '/path/to/roi.geojson'
 
-roi_parameters = gs_downloader.ProductQueryParams()
-roi_parameters.acquisition_date_range(start_season, end_season)
-roi_parameter.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH',
+query = gs_downloader.Query()
+query.acquisition_date_range(start_season, end_season)
+query.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH',
                                      orbitdirection='Ascending') 
-roi_parameters.coords_from_file(ROI)
+query.coords_from_file(ROI)
 
 # submit a query to the ESA database
 hub = gs_downloader.CopernicusHubConnection()
-total, products = hub.submit_query(roi_parameters)
+total, products = hub.submit_query(query)
 
 # download all the returned products
 hub.download_products(products)
