@@ -126,19 +126,20 @@ class ProductQueryParams:
         self.dates = (acqstart, acqend)
 
     def coords_from_file(self, filepath):
-        """Loads in the coordinates of a region of interest from a shapefile.
+        """Loads in the coordinates of a region of interest from a shapefile or
+        geojson file.
 
         Uses the osgeo module to extract the coordinate reference system from
-        the shapefile and reprojects it to WGS84.
+        the file and reprojects it to WGS84.
 
         Note
         ----
-        Only shapefiles are currently supported.
+        Only geojson and shapefiles are currently supported.
 
         Parameters
         ----------
         filepath : str
-            The path to the shapefile.
+            The path to the shapefile or geojson.
 
         Returns
         -------
