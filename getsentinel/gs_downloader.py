@@ -16,7 +16,7 @@ Basic usage example::
     end_date = datetime.date(2018, 6, 1)
 
     # initialise the query object
-    query = gs_downloader.ProductQueryParams()
+    query = gs_downloader.Query()
     query.acquisition_date_range(start_date, end_date)
     query.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
     query.coords_from_file(shape_file)
@@ -55,7 +55,7 @@ from . import gs_gridtest
 from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
 
-class ProductQueryParams:
+class Query:
     """Holds the query parameters use in an ESA hub query.
 
     Attributes
@@ -415,7 +415,7 @@ class CopernicusHubConnection:
 
         Parameters
         ----------
-        parameters : :obj:`ProductQueryParams`
+        parameters : :obj:`Query`
 
         Returns
         -------
@@ -727,7 +727,7 @@ class CopernicusHubConnection:
         return totalresults, productlist
 
     def _build_query(self,
-                     parameters: ProductQueryParams,
+                     parameters: Query,
                      start: int = 0,
                      rows: int = 100):
         """
