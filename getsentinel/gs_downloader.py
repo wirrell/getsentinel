@@ -23,7 +23,7 @@ Basic usage example::
 
     # initialise the hub connection
     hub = gs_downloader.CopernicusHubConnection()
-    total_products, product_list = hub.submit_query(s1_winterwheat_field)
+    total_products, product_list = hub.submit_query(query)
 
     # optionally filter overlapping products from a given region
     # query.ROI contains a polygon generated from the input coordinates
@@ -533,7 +533,7 @@ class CopernicusHubConnection:
             response = requests.get(url,
                                     auth=(self.username, self.password),
                                     stream=True)
-            filename = os.path.join(downloadpath,product['identifier'])+'.jp2'
+            filename = os.path.join(downloadpath, product['identifier'])+'.jp2'
             if response.status_code == 500:  # If no quicklook available
                 url = ('https://scihub.copernicus.eu/dhus/images/'
                        'bigplaceholder.png')
@@ -611,7 +611,7 @@ class CopernicusHubConnection:
                                 stream=True)
         filename = response.headers.get('content-disposition')
         filename = filename.split('"')[1]
-        filepath = os.path.join(downloadpath,filename)
+        filepath = os.path.join(downloadpath, filename)
         if response.status_code == 500:
             raise FileNotFoundError('The product with UUID {0} could not be'
                                     'found.'.format(uuid))
@@ -683,7 +683,11 @@ class CopernicusHubConnection:
                 # returns list of all S2 tiles the product intersects
                 # and the majority tile in format
                 # ([tile1, tile2, ... ], maj_tile)
-                product['tileid'] = finder.request(coord_list)
+                tiles = finder.request(coord_list)
+                if product['platformname'] == 'Sentinel-1':
+                    product['tileid'] = tiles
+                if product['platformname'] == 'Sentinel-2':
+                    product['tileid'] = tiles[1]
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
