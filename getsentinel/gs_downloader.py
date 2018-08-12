@@ -699,6 +699,8 @@ class CopernicusHubConnection:
             message = message.format(id1, id2)
             warnings.warn(message)
         if procfilter:
+            # removes any lesser processed products when a higher processed
+            # product is present.
             for uuid in list(productlist.keys()):
                 try:  # handles case where a uuid has already been removed but
                     product = productlist[uuid]  # key is still present
@@ -712,16 +714,20 @@ class CopernicusHubConnection:
                 for uuid2, product2 in otherproducts.items():
                     tile2 = product2['tileid']
                     sensingtime2 = product2['beginposition']
+                    print(tile, tile2)
+                    print(sensingtime, sensingtime2)
+                    print(product['processinglevel'],
+                          product2['processinglevel'])
 
                     if tile == tile2 and sensingtime == sensingtime2:
                         if product['processinglevel'] == 'Level-1C':
-                            if product2['processinglevel'] == 'Level-2A':
+                            if 'Level2-A' in product2['processinglevel']:
                                 productlist.pop(uuid, None)
                             else:
                                 proc_fail_warning(product['identifier'],
                                                   product2['identifier'])
                         if product2['processinglevel'] == 'Level-1C':
-                            if product['processinglevel'] == 'Level-2A':
+                            if 'Level-2A' in product['processinglevel']:
                                 productlist.pop(uuid2, None)
                             else:
                                 proc_fail_warning(product['identifier'],
