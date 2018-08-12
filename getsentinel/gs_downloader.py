@@ -714,10 +714,6 @@ class CopernicusHubConnection:
                 for uuid2, product2 in otherproducts.items():
                     tile2 = product2['tileid']
                     sensingtime2 = product2['beginposition']
-                    print(tile, tile2)
-                    print(sensingtime, sensingtime2)
-                    print(product['processinglevel'],
-                          product2['processinglevel'])
 
                     if tile == tile2 and sensingtime == sensingtime2:
                         if product['processinglevel'] == 'Level-1C':
