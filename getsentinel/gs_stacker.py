@@ -205,9 +205,9 @@ class Stacker():
         platforms = [self.products[uuid]['platformname'] for uuid in
                      self.products]
         for platform in platforms:
-            if platform != 'Sentinel-1':
+            if platform not in ['Sentinel-1', 'Sentinel-2']:
                 raise NotImplementedError("Currently only supports Sentinel-1"
-                                          " products.")
+                                          " and Sentinel-2 products.")
         if not self.band_list:
             raise ValueError("Please set the band list via"
                              " .set_bands(band_list) before running.")
