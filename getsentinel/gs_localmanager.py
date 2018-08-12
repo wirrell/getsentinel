@@ -18,6 +18,72 @@ gs_localmanager.add_new_products(new_downloaded_products)
 
 Example Product Info Format
 ---------------------------
+Below is an example format, as stored in the product_inventory.json, of an
+unprocessed Sentinel-1 product. The keys `tileid` and `userprocessed` are
+added by the gs_downloader module. The former denotes the Senntinel-2 MGRS
+tiles that the product traverses, the latter indicates whether the file has
+been processed. For processed products a further field, `origin`, is added
+which contains the UUID of the unprocessed product from which the processed
+product originates.
+
+{'acquisitiontype': 'NOMINAL',
+ 'beginposition': '2015-08-24T06:22:07.95Z',
+ 'downloadlink': "https://scihub.copernicus.eu/dhus/odata/v1/Products ... "
+ 'endposition': '2015-08-24T06:22:32.949Z',
+ 'filename': 'S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 ... '
+ 'footprint': 'POLYGON ((-0.059059 53.057114,-3.867077 53.461575,-3.474607 '
+              '54.955406,0.471139 54.547489,-0.059059 53.057114))',
+ 'format': 'SAFE',
+ 'gmlfootprint': '<gml:Polygon '
+                 'srsName="http://www.opengis.net/gml/srs/epsg.xml#4326" '
+                 'xmlns:gml="http://www.opengis.net/gml">\n'
+                 '   <gml:outerBoundaryIs>\n'
+                 '      <gml:LinearRing>\n'
+                 '         <gml:coordinates>53.057114,-0.059059 '
+                 '53.461575,-3.867077 54.955406,-3.474607 54.547489,0.471139 '
+                 '53.057114,-0.059059</gml:coordinates>\n'
+                 '      </gml:LinearRing>\n'
+                 '   </gml:outerBoundaryIs>\n'
+                 '</gml:Polygon>',
+ 'identifier': 'S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 ... '
+ 'ingestiondate': '2015-08-24T15:55:01.836Z',
+ 'instrumentname': 'Synthetic Aperture Radar (C-band)',
+ 'instrumentshortname': 'SAR-C SAR',
+ 'lastorbitnumber': '7401',
+ 'lastrelativeorbitnumber': '154',
+ 'missiondatatakeid': '41709',
+ 'null': 'Date: 2015-08-24T06:22:07.95Z, Instrument: SAR-C SAR, Mode: VV VH, '
+         'Satellite: Sentinel-1, Size: 1 GB',
+ 'orbitdirection': 'DESCENDING',
+ 'orbitnumber': '7401',
+ 'origin': 'd42cc6fe-5f81-4753-bf61-dc081af8fa68',
+ 'platformidentifier': '0000-000A',
+ 'platformname': 'Sentinel-1',
+ 'polarisationmode': 'VV VH',
+ 'productclass': 'S',
+ 'producttype': 'GRD',
+ 'quicklookdownload': "https://scihub.copernicus.eu/dhus/ ... "
+ 'relativeorbitnumber': '154',
+ 'sensoroperationalmode': 'IW',
+ 'size': '1 GB',
+ 'slicenumber': '6',
+ 'status': 'ARCHIVED',
+ 'swathidentifier': 'IW',
+ 'tileid': [['30UVE',
+             '30UVF',
+             '30UVG',
+             '30UWD',
+             '30UWE',
+             '30UWF',
+             '30UXD',
+             '30UXE',
+             '30UXF',
+             '30UYD',
+             '30UYE',
+             '31UCA',
+             '31UCV'],
+            '30UXE'],
+ 'userprocessed': False}
 
 """
 
