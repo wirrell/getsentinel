@@ -138,7 +138,7 @@ def check_integrity():
     product_inventory = _get_inventory()
 
     # get all .SAFE file names from directory
-    product_list_add = [x.name for x in list(data_path.glob('*.tif'))]
+    product_list_add = [x.name for x in list(data_path.glob('*.SAFE'))]
     # also get all processed files from directory
     # NOTE: need to add the random apple files Joe mentioned to be ignored
     # here.
