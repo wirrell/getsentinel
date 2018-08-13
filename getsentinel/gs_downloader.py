@@ -16,14 +16,14 @@ Basic usage example::
     end_date = datetime.date(2018, 6, 1)
 
     # initialise the query object
-    query = gs_downloader.ProductQueryParams()
+    query = gs_downloader.Query()
     query.acquisition_date_range(start_date, end_date)
     query.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
-    query.coords_from_file(shape_file, '.shp', 'BNG')
+    query.coords_from_file(shape_file)
 
     # initialise the hub connection
     hub = gs_downloader.CopernicusHubConnection()
-    total_products, product_list = hub.submit_query(s1_winterwheat_field)
+    total_products, product_list = hub.submit_query(query)
 
     # optionally filter overlapping products from a given region
     # query.ROI contains a polygon generated from the input coordinates
@@ -35,7 +35,6 @@ Basic usage example::
 
 """
 
-# TODO: Implement load in of ROI coordinates from geojson files.
 
 import datetime
 import os
@@ -47,6 +46,7 @@ import zipfile
 import requests
 from clint.textui import progress
 import shapefile
+import geojson
 from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
 from osgeo import ogr, osr
@@ -55,7 +55,7 @@ from . import gs_gridtest
 from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
 
-class ProductQueryParams:
+class Query:
     """Holds the query parameters use in an ESA hub query.
 
     Attributes
@@ -126,19 +126,20 @@ class ProductQueryParams:
         self.dates = (acqstart, acqend)
 
     def coords_from_file(self, filepath):
-        """Loads in the coordinates of a region of interest from a shapefile.
+        """Loads in the coordinates of a region of interest from a shapefile or
+        geojson file.
 
         Uses the osgeo module to extract the coordinate reference system from
-        the shapefile and reprojects it to WGS84.
+        the file and reprojects it to WGS84.
 
         Note
         ----
-        Only shapefiles are currently supported.
+        Only geojson and shapefiles are currently supported.
 
         Parameters
         ----------
         filepath : str
-            The path to the shapefile.
+            The path to the shapefile or geojson.
 
         Returns
         -------
@@ -146,11 +147,11 @@ class ProductQueryParams:
 
         """
 
-        # TODO: Implement reading in of coords from geojson files.
+        file_type = pathlib.Path(filepath).suffix
 
-        if pathlib.Path(filepath).suffix != '.shp':
-            raise NotImplementedError('Currently only .shp files are'
-                                      'supported.')
+        if file_type not in ['.shp', '.geojson']:
+            raise NotImplementedError('Currently only .shp and .geojson files'
+                                      ' are supported.')
 
         # set WGS84 spatial ref
         wgs84 = osr.SpatialReference()
@@ -159,13 +160,27 @@ class ProductQueryParams:
         shp = ogr.Open(filepath)
         layer = shp.GetLayer()
         shp_crs = layer.GetSpatialRef()
+
         x_coords = []
         y_coords = []
-        shp = shapefile.Reader(filepath)
-        for shape in shp.shapes():  # extract all points from all shapes
-            for point in shape.points:  # in the file
-                x_coords.append(point[0])
-                y_coords.append(point[1])
+
+        if file_type == '.shp':
+            shp = shapefile.Reader(filepath)
+            for shape in shp.shapes():  # extract all points from all shapes
+                for point in shape.points:  # in the file
+                    x_coords.append(point[0])
+                    y_coords.append(point[1])
+
+        if file_type == '.geojson':
+            with open(filepath, 'r') as f:
+                gjson = geojson.load(f)
+                features = gjson['features']
+                for feature in features:
+                    coords = geojson.utils.coords(feature)
+                    for coord in coords:
+                        x_coords.append(coord[0])
+                        y_coords.append(coord[1])
+
         coords = list(zip(x_coords, y_coords))
         m = MultiPoint(coords)  # import into shapely
         shape_extents = m.convex_hull  # gets polygon that encomps all points
@@ -337,7 +352,7 @@ class ProductQueryParams:
                         'sensoroperationalmode:': mode,
                         'polarisationmode:': polarisation,
                         'resolution:': resolution,
-                        'orbitdirection': orbitdirection}
+                        'orbitdirection:': orbitdirection}
 
 
 class CopernicusHubConnection:
@@ -400,7 +415,7 @@ class CopernicusHubConnection:
 
         Parameters
         ----------
-        parameters : :obj:`ProductQueryParams`
+        parameters : :obj:`Query`
 
         Returns
         -------
@@ -518,7 +533,7 @@ class CopernicusHubConnection:
             response = requests.get(url,
                                     auth=(self.username, self.password),
                                     stream=True)
-            filename = os.path.join(downloadpath,product['identifier'])
+            filename = os.path.join(downloadpath, product['identifier'])+'.jp2'
             if response.status_code == 500:  # If no quicklook available
                 url = ('https://scihub.copernicus.eu/dhus/images/'
                        'bigplaceholder.png')
@@ -596,20 +611,26 @@ class CopernicusHubConnection:
                                 stream=True)
         filename = response.headers.get('content-disposition')
         filename = filename.split('"')[1]
-        filepath = os.path.join(downloadpath,filename)
+        downloadpath = pathlib.Path(downloadpath)
+        filepath = pathlib.Path.joinpath(downloadpath, filename)
         if response.status_code == 500:
             raise FileNotFoundError('The product with UUID {0} could not be'
                                     'found.'.format(uuid))
-        with open(filepath, 'wb') as handle:
-            filelength = int(response.headers.get('content-length'))
-            print('Downloading product: \n {0}  \nwith UUID:'
-                  '{1}'.format(filename,
-                               uuid))
-            for chunk in progress.bar(response.iter_content(chunk_size=1024),
-                                      expected_size=(filelength/1024) + 1):
-                if chunk:  # filter out keep-alive new chunks
-                    handle.write(chunk)
-                    handle.flush()
+        try:
+            with filepath.open('wb') as handle:
+                filelength = int(response.headers.get('content-length'))
+                print('Downloading product: \n {0}  \nwith UUID:'
+                      '{1}'.format(filename,
+                                   uuid))
+                for chunk in progress.bar(
+                    response.iter_content(chunk_size=1024),
+                    expected_size=(filelength/1024) + 1):
+                    if chunk:  # filter out keep-alive new chunks
+                        handle.write(chunk)
+                        handle.flush()
+        except KeyboardInterrupt:
+            filepath.unlink()
+            exit()
 
         # check the download was successful using MD5 Checksum
         if verify:
@@ -668,7 +689,11 @@ class CopernicusHubConnection:
                 # returns list of all S2 tiles the product intersects
                 # and the majority tile in format
                 # ([tile1, tile2, ... ], maj_tile)
-                product['tileid'] = finder.request(coord_list)
+                tiles = finder.request(coord_list)
+                if product['platformname'] == 'Sentinel-1':
+                    product['tileid'] = tiles
+                if product['platformname'] == 'Sentinel-2':
+                    product['tileid'] = tiles[1]
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
@@ -680,6 +705,8 @@ class CopernicusHubConnection:
             message = message.format(id1, id2)
             warnings.warn(message)
         if procfilter:
+            # removes any lesser processed products when a higher processed
+            # product is present.
             for uuid in list(productlist.keys()):
                 try:  # handles case where a uuid has already been removed but
                     product = productlist[uuid]  # key is still present
@@ -696,13 +723,13 @@ class CopernicusHubConnection:
 
                     if tile == tile2 and sensingtime == sensingtime2:
                         if product['processinglevel'] == 'Level-1C':
-                            if product2['processinglevel'] == 'Level-2A':
+                            if 'Level-2A' in product2['processinglevel']:
                                 productlist.pop(uuid, None)
                             else:
                                 proc_fail_warning(product['identifier'],
                                                   product2['identifier'])
                         if product2['processinglevel'] == 'Level-1C':
-                            if product['processinglevel'] == 'Level-2A':
+                            if 'Level-2A' in product['processinglevel']:
                                 productlist.pop(uuid2, None)
                             else:
                                 proc_fail_warning(product['identifier'],
@@ -712,7 +739,7 @@ class CopernicusHubConnection:
         return totalresults, productlist
 
     def _build_query(self,
-                     parameters: ProductQueryParams,
+                     parameters: Query,
                      start: int = 0,
                      rows: int = 100):
         """
@@ -832,6 +859,8 @@ def filter_overlaps(product_list,
 
     encompassing_products = []
 
+    num_products_passed = len(product_list)
+
     for uuid, product in product_list.copy().items():
         # format the footprint string for use with pyshp
         footprint = loads(product['footprint'])  # load in via shapely
@@ -891,6 +920,11 @@ def filter_overlaps(product_list,
                       product2['polarisationmode'] == polarisation): # noqa
                         product_list.pop(uuid2, None)
                         break
+
+    products_removed = num_products_passed - len(product_list)
+
+    print("filter_overlaps : {0} product(s) filtered"
+          " out.".format(products_removed))
 
     return product_list
 

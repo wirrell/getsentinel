@@ -10,16 +10,10 @@ Note
 ----
 Currently only handles Sentinel-1 products.
 
-Attributes
-----------
-S1_RASTER_PATH : str
-    Local path within a Sentinel-1 .SAFE file to the measurement rasters.
-
-
 TODO
 ----
+Implement weather concealment checking for ROIs specific products.
 Implement S2 product handling.
-Implement other band_list preferences in `run` and `set_bands`
 Investigate doing the masking using `gdal` instead of `rasterio`.
 
 """
@@ -27,7 +21,6 @@ Investigate doing the masking using `gdal` instead of `rasterio`.
 from . import gs_config
 import os
 import datetime
-import subprocess
 import warnings
 from pathlib import Path
 import numpy as np
@@ -35,11 +28,7 @@ import shapely
 import shapefile
 import rasterio
 import rasterio.mask
-import rasterio.errors as re
 from osgeo import osr, ogr
-
-
-S1_RASTER_PATH = '/measurement/'  # where .tiff files reside in S1 .SAFE
 
 
 class Stacker():
@@ -59,10 +48,10 @@ class Stacker():
     ----------
     product_list : dict
         Contains the Sentinel products containing data relevant to the
-        area coverered by the passed shapefiles.
-    shape_files : list
+        area coverered by the passed shapefiles or geojsons.
+    geo_files : list
         A `list` of `str` containing the paths to all of the relevant
-        shapefiles.
+        shapefiles or geojsons.
     start_date : datetime.date
         The start of the time period used for data extraction. Any Sentinel
         products passed to the `Stacker` but generated outside of this time
@@ -78,8 +67,8 @@ class Stacker():
     product_boundaries : dict
         Contains `shapely.geometry.Polygon` objects describing the boundaries
         of each of the products in `products`.
-    shape_files : list
-        Contains a copy of `shape_files` passed to the object.
+    geo_files : list
+        Contains a copy of `geo_files` passed to the object.
     start_date : datetime.date
         A copy of `start_date` passed to the object.
     end_date : datetime.date
@@ -100,40 +89,41 @@ class Stacker():
 
     def __init__(self,
                  product_list,
-                 shape_files,
+                 geo_files,
                  start_date,
                  end_date):
 
-        self.shape_files = shape_files
+        self.geo_files = geo_files
         self.start_date = start_date
         self.end_date = end_date
-        # filters the product list and generates the shapely objects for the products
+        # filters the product list and generates the shapely objects
+        # for the products
         self.products, self.product_boundaries = self._gen_product_shapes(
             product_list)
         # generates the shapely objects for the ROIs
-        self._gen_ROI_shapes(shape_files)
+        self._gen_ROI_shapes(geo_files)
         # holds the uuids and corresponding shape files within each product
         self.job_list = self._allocate_ROIs()
         # lists all the names of the shapefiles
-        self.stack_list = {name: None for name in self.ROIs}
+        self.stack_list = {name: {} for name in self.ROIs}
         # temporary store for the layers before final combination
         self._layerbank = {name: {} for name in self.stack_list}
         self.band_list = False
-        self._generated = False
+        self.weather_check = False
 
-    def __getitem__(self, key):
-        """Implements dict like functionality."""
-
-        if not self._generated:
-            print("Please call the run method first.")
-            return None
-
-        return self.stack_list[key]
-
-    def set_bands(self, s1_band_list=[], s2_band_list=[]):
+    def set_bands(self, s1_band_list=[], s2_band_list=[], s2_resolution=False):
         """Sets the attribute `band_list` to the passed bands.
 
         Valid bands for S1 GRD products there are: 'vv', 'vh'.
+        Valid bands for S2 L2A products are: 
+                          '10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
+                                 'WVP'],
+                          '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI', 
+                                 'WVP'],
+                          '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                                 'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
+                                 'TCI', 'WVP']}
 
         Note
         ----
@@ -149,6 +139,9 @@ class Stacker():
             `list` of `str` containing the S2 bands the user wants extract from
             the S2 products passed to `Stacker`.
             Required form : ['band1', 'band2', ... ]
+        s2_resolution : int, optional
+            Choose the band resolution of the Sentinel-2 bands. Can be `10`,
+            `20`, or `60`.
 
         Returns
         -------
@@ -163,8 +156,28 @@ class Stacker():
 
         # TODO: implement S2 bands as valid
 
+        if s2_band_list and s2_resolution not in [10, 20, 60]:
+            RuntimeError("You must specify a resolution of int 10, 20, or 60"
+                         " when stacking Sentinel-2 products.")
+
         s1_valid_bands = ['vv', 'vh']
-        s2_valid_bands = []
+        s2_valid_bands = {'10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
+                                 'WVP'],
+                          '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI', 
+                                 'WVP'],
+                          '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                                 'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
+                                 'TCI', 'WVP']}
+        if s2_resolution:
+            s2_valid_bands = s2_valid_bands[str(s2_resolution)]
+        
+
+        if s1_band_list and s2_resolution is not 10:
+            warnings.warn("Sentinel-1 GRD products are 10m resolution pixels."
+                          " Combining Sentinel-2 products with resolution of"
+                          " 20m or 60m with Sentinel-1 products will result in"
+                          " incoherent data output at the per-pixel level.")
 
         for band in s1_band_list:
             if band not in s1_valid_bands:
@@ -175,9 +188,18 @@ class Stacker():
                 print(self.set_bands.__doc__)
                 raise ValueError('Passed bands not in valid band list.')
 
+        bands = s1_band_list + s2_band_list
+
+        for roi in self._layerbank:
+            for band in bands:
+                self._layerbank[roi][band] = {}
+
         self.band_list = [s1_band_list, s2_band_list]
 
-    def run(self):
+        if s2_resolution:
+            self.s2_res = s2_resolution
+
+    def generate_stacks(self):
         """Runs the data layer extraction and stacking process.
 
         Note
@@ -186,7 +208,10 @@ class Stacker():
 
         Returns
         -------
-        None
+        dict
+            Contains all the generate `Stack` objects keyed by the names of
+            their corresponding shapefiles.
+
 
         Raises
         ------
@@ -203,9 +228,9 @@ class Stacker():
         platforms = [self.products[uuid]['platformname'] for uuid in
                      self.products]
         for platform in platforms:
-            if platform != 'Sentinel-1':
+            if platform not in ['Sentinel-1', 'Sentinel-2']:
                 raise NotImplementedError("Currently only supports Sentinel-1"
-                                          " products.")
+                                          " and Sentinel-2 products.")
         if not self.band_list:
             raise ValueError("Please set the band list via"
                              " .set_bands(band_list) before running.")
@@ -226,23 +251,35 @@ class Stacker():
 
         self._generate_stacks()
 
+        if self.weather_check:
+            self._weather_report()
+
+        return self.stack_list
+
     def _generate_stacks(self):
         """Make the layers uniform and combine them into numpy array stacks."""
 
-        for roi, layers in self._layerbank.items():
-            layers_ = [layer for date, layer in sorted(layers.items())]
-            info_ = [layer.info for date, layer in sorted(layers.items())]
-            transforms_ = [layer.transform for date, layer in
-                           sorted(layers.items())]
-            layers_ = self._pad_layers(layers_)
-            stack = np.stack(layers_, axis=0)
-            stack = np.ma.masked_where(stack==0, stack)
-            stack = InfoLayer(stack, info_, transforms_, roi)
-            # mask all the zero values in the output array sounding the
-            # region of interest
-            self.stack_list[roi] = stack
-
-        self._generated = True
+        for roi, bands in self._layerbank.items():
+            for band, layers in bands.items():
+                layers_ = [layer for date, layer in sorted(layers.items())]
+                info_ = [layer.info for date, layer in sorted(layers.items())]
+                transforms_ = [layer.transform for date, layer in
+                               sorted(layers.items())]
+                if band == 'TCI':  # TCI images are multi-layer
+                    # and requires handling for 3 channel of TCI images
+                    new_layers = []
+                    for layer in layers_:
+                        layer = self._pad_layers(layer)
+                        new_layers.append(layer)
+                    layers_ = new_layers
+                else:
+                    layers_ = self._pad_layers(layers_)
+                stack = np.stack(layers_, axis=0)
+                stack = np.ma.masked_where(stack == 0, stack)
+                stack = Stack(stack, info_, transforms_, roi)
+                # mask all the zero values in the output array sounding the
+                # region of interest
+            self.stack_list[roi][band] = stack
 
     def _pad_layers(self, layers):
         """Pads the layers with zeroes so they conform to a uniform shape."""
@@ -299,6 +336,103 @@ class Stacker():
 
         return padded_layers
 
+    def check_weather(self, cloud=False, snow=False):
+        """
+        Set a threshold for the probability of cloud or snow cover in the
+        region of interest.
+
+        If the probability cover provided by the ESA in the automated cloud and
+        snow masks is higher than the user-defined threshold, a warning is
+        thrown during stacking.
+
+        Parameters
+        ----------
+        cloud : int, optional
+            The percentrage threshold cloud probability for regions of
+            interest, above which the stacker throws a warning.
+        snow : int, optional
+            The percentrage threshold snow probability for regions of
+            interest, above which the stacker throws a warning.
+
+        Returns
+        -------
+        None
+        """
+
+        for threshold in (cloud, snow):
+            if threshold and (threshold < 0 or threshold > 100):
+                raise ValueError("Please enter an int between 0 and 100")
+
+        self.weather_check = True
+        self.cloud_info = {ROI: [] for ROI in self.ROIs}
+        self.snow_info = {ROI: [] for ROI in self.ROIs}
+        self.weather_thresholds = {'cloud': cloud, 'snow': snow}
+
+    def _weather_concealment(self, mask, tilepath, ROI, filename, datetime):
+        """Checks the percentage likelihood of weather concealment using the
+        ESA provided masks."""
+
+        cloud_threshold = self.weather_thresholds['cloud']
+        snow_threshold = self.weather_thresholds['snow']
+
+        qi_data = tilepath.joinpath('QI_DATA')
+        cloud_mask = list(qi_data.glob('*CLD*20m.jp2'))
+        snow_mask = list(qi_data.glob('*SNW*20m.jp2'))
+        if len(cloud_mask) is not 1:
+            raise RuntimeError("Could not locate the cloud mask for {0}"
+                               "".format(filename))
+        if len(snow_mask) is not 1:
+            raise RuntimeError("Could not locate the snow mask for {0}"
+                               "".format(filename))
+        cloud_mask = cloud_mask[0]
+        snow_mask = snow_mask[0]
+
+        if cloud_threshold:
+            with rasterio.open(str(cloud_mask), 'r') as cloud:
+                out_image, out_transform = rasterio.mask.mask(cloud,
+                                                              mask,
+                                                              crop=True)
+                if np.max(out_image) >= cloud_threshold:
+                    self.cloud_info[ROI].append(datetime)
+
+        if snow_threshold:
+            with rasterio.open(str(snow_mask), 'r') as snow:
+                out_image, out_transform = rasterio.mask.mask(snow,
+                                                              mask,
+                                                              crop=True)
+                if np.max(out_image) >= snow_threshold:
+                    self.snow_info[ROI].append(datetime)
+
+    def _weather_report(self):
+        """Prints the results of the weather check to the console."""
+
+        cloud_threshold = self.weather_thresholds['cloud']
+        snow_threshold = self.weather_thresholds['snow']
+
+        print("\ngs_stacker WEATHER CHECK RESULTS:\n")
+
+        if cloud_threshold:
+            print("The following ROIs have CLOUD cover probability above the"
+                  " specified {0}% threshold on these dates:\n"
+                  "".format(cloud_threshold))
+            for roi in self.cloud_info:
+                print("{0}:".format(roi))
+                if len(self.cloud_info[roi]) is 0:
+                    print("         ", "NONE")
+                for datetime in self.cloud_info[roi]:
+                    print("         ", datetime)     
+
+        if snow_threshold:
+            print("The following ROIs have SNOW cover probability above the"
+                  " specified {0}% threshold on these dates:\n"
+                  "".format(snow_threshold))
+            for roi in self.snow_info:
+                print("{0}:".format(roi))
+                if len(self.snow_info[roi]) is 0:
+                    print("         ", "NONE")
+                for datetime in self.snow_info[roi]:
+                    print("         ", datetime)     
+
     def _extract_data(self, uuid: str, band: str):
         """
         Checks the joblist to see what ROIs need to be postage stamped out of
@@ -308,42 +442,80 @@ class Stacker():
         add it to the corresponding list in the layer_stack.
         """
 
-        # TODO: talk to Joe about the layout for this, see suggestions paper
-        # notes
-
-        # get the path to the processed .tif
-
         product = self.products[uuid]
         platform = product['platformname']
         filename = product['filename']
+        datetime = product['beginposition'],
         info = {'from': uuid,
                 'platform': platform,
-                'datetime': product['beginposition'],
+                'datetime': datetime,
                 'band': band,
                 'processing': product['producttype']}
-        identifier = product['identifier']
-        if platform == 'Sentinel-2':
-            raise NotImplementedError('S2 support not yet implemented.')
 
+        if platform == 'Sentinel-2':
+            data_path = Path(gs_config.DATA_PATH)
+            file_path = data_path.joinpath(filename)
+            granule = file_path.joinpath('GRANULE')
+            for child in granule.iterdir():
+                # should be only one sub-dir in the GRANULE dir
+                if child.is_dir():
+                    tilepath = child
+                    break
+            img_data = tilepath.joinpath('IMG_DATA')
+            ext = 'R{0}m'.format(str(self.s2_res))
+            raster_dir = img_data.joinpath(ext)
+            for child in raster_dir.iterdir():
+                if band in str(child):
+                    proc_file = child
+                    break
+            
         if platform == 'Sentinel-1':
             if filename.endswith('.SAFE'):
                 raise RuntimeError("Product {0} is an unprocessed Sentinel-1 "
                                    "file and cannot be stacked.".format(
-                                   filename))
+                                    filename))
             info['mode'] = product['sensoroperationalmode']
             if band is 'vv':
                 layer_number = 0
             if band is 'vh':
                 layer_number = 1
 
-        proc_file = os.path.join(gs_config.DATA_PATH,filename)
+            proc_file = Path(gs_config.DATA_PATH).joinpath(filename)
 
         # get the shape the reside within this product
         associated_ROIs = self.job_list[uuid]
 
+        def reproject_ROI(mask, epsg):
+            # Reproject the roi coords to the same crs as the raster
+            roi = mask[0]
+            wgs84 = osr.SpatialReference()
+            wgs84.ImportFromEPSG(4326)
+            raster_crs = osr.SpatialReference()
+            raster_crs.ImportFromEPSG(epsg)
+            shape_ = ogr.CreateGeometryFromWkt(roi.wkt)
+            transform = osr.CoordinateTransformation(wgs84, raster_crs)
+            shape_.Transform(transform)
+            # back to shapely
+            roi = shapely.wkt.loads(shape_.ExportToWkt())
+            return [roi]
+
+
         with rasterio.open(str(proc_file), 'r') as raster:
+            raster_epsg = raster.crs.to_epsg()
+                
+            # for all of the corresponding ROIs related to this product
             for ROI in associated_ROIs:
                 mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
+
+                # reproject the mask to the raster epsg if it is not WGS84
+                if raster_epsg is not 4326:
+                    mask = reproject_ROI(mask, raster_epsg)
+
+                # if we need to check the weather cover for Sentinel-2 products
+                if self.weather_check and '2' in platform:
+                    self._weather_concealment(mask, tilepath, ROI, filename,
+                                              datetime)
+
                 out_image, out_transform = rasterio.mask.mask(raster,
                                                               mask,
                                                               crop=True)
@@ -355,12 +527,22 @@ class Stacker():
                     # data they represent. Ie. the ROI is in the dead zone!
                     continue
 
-                # out_image is 3D when ie. [2, X, Y] and we only need the 2D
-                # either vv or vh
-                layer = InfoLayer(out_image[layer_number], info, out_transform)
-                date = product['beginposition']
-                self._layerbank[ROI][date] = layer
+                if '1' in platform: 
+                    # out_image is 3D when ie. [2, X, Y] and we only need the 2D
+                    # either vv or vh
+                    if out_image.shape[0] is not 1:
+                        layer = Stack(out_image[layer_number], info,
+                                      out_transform)
+                    else:
+                        layer = Stack(out_image[0], info,
+                                      out_transform)
 
+                if '2' in platform:
+                    layer = Stack(out_image, info, out_transform)
+
+                date = product['beginposition']
+                self._layerbank[ROI][band][date] = layer
+                    
     def _allocate_ROIs(self):
         """
         Checks product boundaries against ROI areas and allocates ROIs to
@@ -394,11 +576,10 @@ class Stacker():
                 product_boundaries[uuid] = product_shape
                 filtered_products[uuid] = product
 
-
         return filtered_products, product_boundaries
 
-    def _gen_ROI_shapes(self, shape_files):
-        """Loads shapely objects from given shape files."""
+    def _gen_ROI_shapes(self, geo_files):
+        """Loads shapely objects from given geo files."""
 
         # set WGS84 spatial ref
         wgs84 = osr.SpatialReference()
@@ -406,26 +587,50 @@ class Stacker():
 
         ROIs = {}  # stores the referenced shapely objects use for masking
 
-        for shape_file in shape_files:
-            filename = shape_file.split('/')[-1][:-4]
-            shp = ogr.Open(shape_file)
-            layer = shp.GetLayer()
-            shp_crs = layer.GetSpatialRef()
-            if shp_crs == wgs84:  # if already WGS84 - skip
-                continue
-            transform = osr.CoordinateTransformation(shp_crs, wgs84)
+        for geo_file in geo_files:
+            geo_file = Path(geo_file)
+            suffix = geo_file.suffix
+            if suffix not in ['.shp', '.geojson']:
+                raise TypeError("File {0} not supported by gs_stacker.Stacker."
+                                " Only .shp and .geojson files are currently"
+                                " supported for defining masks / ROIs".format(
+                                    geo_file))
+            filename = geo_file.stem
             x_coords = []
             y_coords = []
-            shp = shapefile.Reader(shape_file)
-            for shape in shp.shapes():  # extract all points from all shapes
-                for point in shape.points:  # in the file
-                    x_coords.append(point[0])
-                    y_coords.append(point[1])
-            coords = list(zip(x_coords, y_coords))
-            m = shapely.geometry.MultiPoint(coords)  # import into shapely
-            extents = m.convex_hull  # gets polygon that encomps all points
+            shp = ogr.Open(str(geo_file))
+            if shp.GetLayerCount() > 1:
+                warnings.warn("geo-referenced files (.shp, .geojson etc)"
+                              " with more than one layer / feature will have"
+                              " the coordinates of all layers / features used"
+                              " to generate a mask for the Sentinel file.")
+            layer = shp.GetLayer()
+            shp_crs = layer.GetSpatialRef()
+            transform = osr.CoordinateTransformation(shp_crs, wgs84)
+
+            if suffix == '.shp':
+                shp = shapefile.Reader(geo_file)
+                # extract all points from all shapes
+                for shape in shp.shapes():
+                    for point in shape.points:  # in the file
+                        x_coords.append(point[0])
+                        y_coords.append(point[1])
+                coords = list(zip(x_coords, y_coords))
+                m = shapely.geometry.MultiPoint(coords)  # import into shapely
+                extents = m.convex_hull  # gets polygon that encomps all points
+                shape_ = ogr.CreateGeometryFromWkt(extents.wkt)
+
+            if suffix == '.geojson':
+                geometries = []
+                for layer in shp:
+                    for i in range(layer.GetFeatureCount()):
+                        feature = layer.GetFeature(i)
+                        geometries.append(feature.geometry())
+                shape_ = geometries[0]
+                for i in range(1, len(geometries)):
+                    shape_ = shape_.AddGeometry(geometries[i])
+
             # now reproject in ogr
-            shape_ = ogr.CreateGeometryFromWkt(extents.wkt)
             shape_.Transform(transform)
             # back to shapely for boundary comparison during run()
             shape = shapely.wkt.loads(shape_.ExportToWkt())
@@ -435,7 +640,7 @@ class Stacker():
         self.ROIs = ROIs
 
 
-class InfoLayer(np.ndarray):
+class Stack(np.ndarray):
     """Used to add an attribute to an existing numpy array.
     adapted from:
         https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html
@@ -445,7 +650,7 @@ class InfoLayer(np.ndarray):
     Parameters
     ----------
     input_array : numpy.ndarray
-        An existing array that is to be converted to an `InfoLayer`.
+        An existing array that is to be converted to a `Stack`.
     info : list, str
         `list` of `str` or just `str` that contains info on each layer such as
         UUID of origin, platform, date of capture, band, and processing level.
@@ -453,7 +658,7 @@ class InfoLayer(np.ndarray):
         the out_transform output from the `mask` function of the `rasterio`
         library.
     name : str, optional
-        The name of the InfoLayer. Used in the final array stacks to name the
+        The name of the Stack. Used in the final array stacks to name the
         stacks with the `str` of their corresponding shapefile names.
 
     Attributes
@@ -469,7 +674,7 @@ class InfoLayer(np.ndarray):
 
     def __new__(cls, input_array, info, transform, name=False):
         obj = np.asarray(input_array).view(cls)
-        obj = np.ma.masked_where(obj==0, obj)
+        obj = np.ma.masked_where(obj == 0, obj)
         obj.info = info
         obj.transform = transform
         if name:
