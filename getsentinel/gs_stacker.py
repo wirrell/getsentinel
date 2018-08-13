@@ -108,7 +108,7 @@ class Stacker():
         # temporary store for the layers before final combination
         self._layerbank = {name: {} for name in self.stack_list}
         self.band_list = False
-        self._generated = False
+        self.weather_check = False
 
     def set_bands(self, s1_band_list=[], s2_band_list=[], s2_resolution=False):
         """Sets the attribute `band_list` to the passed bands.
@@ -168,7 +168,9 @@ class Stacker():
                           '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
                                  'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
                                  'TCI', 'WVP']}
-        s2_valid_bands = s2_valid_bands[str(s2_resolution)]
+        if s2_resolution:
+            s2_valid_bands = s2_valid_bands[str(s2_resolution)]
+        
 
         if s1_band_list and s2_resolution is not 10:
             warnings.warn("Sentinel-1 GRD products are 10m resolution pixels."
@@ -248,17 +250,18 @@ class Stacker():
 
         self._generate_stacks()
 
+        if self.weather_check:
+            self._weather_report()
+
         return self.stack_list
 
     def _generate_stacks(self):
         """Make the layers uniform and combine them into numpy array stacks."""
 
         for roi, bands in self._layerbank.items():
-            print(bands)
             for band, layers in bands.items():
                 layers_ = [layer for date, layer in sorted(layers.items())]
                 info_ = [layer.info for date, layer in sorted(layers.items())]
-                print(layers_)
                 transforms_ = [layer.transform for date, layer in
                                sorted(layers.items())]
                 if band == 'TCI':  # TCI images are multi-layer
@@ -332,12 +335,102 @@ class Stacker():
 
         return padded_layers
 
-    def check_weather(cloud=False, snow=False):
-        #TODO: write user facing weather checking method
+    def check_weather(self, cloud=False, snow=False):
+        """
+        Set a threshold for the probability of cloud or snow cover in the
+        region of interest.
 
-    def _weather_concealment(mask, tilepath, threshold):
-        #TODO: write check for weather concealment using threshold likelihood.
-        pass
+        If the probability cover provided by the ESA in the automated cloud and
+        snow masks is higher than the user-defined threshold, a warning is
+        thrown during stacking.
+
+        Parameters
+        ----------
+        cloud : int, optional
+            The percentrage threshold cloud probability for regions of
+            interest, above which the stacker throws a warning.
+        snow : int, optional
+            The percentrage threshold snow probability for regions of
+            interest, above which the stacker throws a warning.
+
+        Returns
+        -------
+        None
+        """
+
+        for threshold in (cloud, snow):
+            if threshold and (threshold < 0 or threshold > 100):
+                raise ValueError("Please enter an int between 0 and 100")
+
+        self.weather_check = True
+        self.cloud_info = {ROI: [] for ROI in self.ROIs}
+        self.snow_info = {ROI: [] for ROI in self.ROIs}
+        self.weather_thresholds = {'cloud': cloud, 'snow': snow}
+
+    def _weather_concealment(self, mask, tilepath, ROI, filename, datetime):
+        """Checks the percentage likelihood of weather concealment using the
+        ESA provided masks."""
+
+        cloud_threshold = self.weather_thresholds['cloud']
+        snow_threshold = self.weather_thresholds['snow']
+
+        qi_data = tilepath.joinpath('QI_DATA')
+        cloud_mask = list(qi_data.glob('*CLD*20m.jp2'))
+        snow_mask = list(qi_data.glob('*SNW*20m.jp2'))
+        if len(cloud_mask) is not 1:
+            raise RuntimeError("Could not locate the cloud mask for {0}"
+                               "".format(filename))
+        if len(snow_mask) is not 1:
+            raise RuntimeError("Could not locate the snow mask for {0}"
+                               "".format(filename))
+        cloud_mask = cloud_mask[0]
+        snow_mask = snow_mask[0]
+
+        if cloud_threshold:
+            with rasterio.open(str(cloud_mask), 'r') as cloud:
+                out_image, out_transform = rasterio.mask.mask(cloud,
+                                                              mask,
+                                                              crop=True)
+                if np.max(out_image) >= cloud_threshold:
+                    self.cloud_info[ROI].append(datetime)
+
+        if snow_threshold:
+            with rasterio.open(str(snow_mask), 'r') as snow:
+                out_image, out_transform = rasterio.mask.mask(snow,
+                                                              mask,
+                                                              crop=True)
+                if np.max(out_image) >= snow_threshold:
+                    self.snow_info[ROI].append(datetime)
+
+    def _weather_report(self):
+        """Prints the results of the weather check to the console."""
+
+        cloud_threshold = self.weather_thresholds['cloud']
+        snow_threshold = self.weather_thresholds['snow']
+
+        print("\ngs_stacker WEATHER CHECK RESULTS:\n")
+
+        if cloud_threshold:
+            print("The following ROIs have CLOUD cover probability above the"
+                  " specified {0}% threshold on these dates:\n"
+                  "".format(cloud_threshold))
+            for roi in self.cloud_info:
+                print("{0}:".format(roi))
+                if len(self.cloud_info[roi]) is 0:
+                    print("         ", "NONE")
+                for datetime in self.cloud_info[roi]:
+                    print("         ", datetime)     
+
+        if snow_threshold:
+            print("The following ROIs have SNOW cover probability above the"
+                  " specified {0}% threshold on these dates:\n"
+                  "".format(snow_threshold))
+            for roi in self.snow_info:
+                print("{0}:".format(roi))
+                if len(self.snow_info[roi]) is 0:
+                    print("         ", "NONE")
+                for datetime in self.snow_info[roi]:
+                    print("         ", datetime)     
 
     def _extract_data(self, uuid: str, band: str):
         """
@@ -351,9 +444,10 @@ class Stacker():
         product = self.products[uuid]
         platform = product['platformname']
         filename = product['filename']
+        datetime = product['beginposition'],
         info = {'from': uuid,
                 'platform': platform,
-                'datetime': product['beginposition'],
+                'datetime': datetime,
                 'band': band,
                 'processing': product['producttype']}
 
@@ -364,9 +458,9 @@ class Stacker():
             for child in granule.iterdir():
                 # should be only one sub-dir in the GRANULE dir
                 if child.is_dir():
-                    tile = child
+                    tilepath = child
                     break
-            img_data = child.joinpath('IMG_DATA')
+            img_data = tilepath.joinpath('IMG_DATA')
             ext = 'R{0}m'.format(str(self.s2_res))
             raster_dir = img_data.joinpath(ext)
             for child in raster_dir.iterdir():
@@ -408,10 +502,19 @@ class Stacker():
         with rasterio.open(str(proc_file), 'r') as raster:
             raster_epsg = raster.crs.to_epsg()
                 
+            # for all of the corresponding ROIs related to this product
             for ROI in associated_ROIs:
                 mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
+
+                # reproject the mask to the raster epsg if it is not WGS84
                 if raster_epsg is not 4326:
                     mask = reproject_ROI(mask, raster_epsg)
+
+                # if we need to check the weather cover for Sentinel-2 products
+                if self.weather_check and '2' in platform:
+                    self._weather_concealment(mask, tilepath, ROI, filename,
+                                              datetime)
+
                 out_image, out_transform = rasterio.mask.mask(raster,
                                                               mask,
                                                               crop=True)
@@ -432,13 +535,12 @@ class Stacker():
                     else:
                         layer = Stack(out_image[0], info,
                                       out_transform)
-                    date = product['beginposition']
-                    self._layerbank[ROI][band][date] = layer
 
                 if '2' in platform:
                     layer = Stack(out_image, info, out_transform)
-                    date = product['beginposition']
-                    self._layerbank[ROI][band][date] = layer
+
+                date = product['beginposition']
+                self._layerbank[ROI][band][date] = layer
                     
     def _allocate_ROIs(self):
         """
