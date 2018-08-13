@@ -15,12 +15,12 @@ test_file = 'test_files/CB7_4SS_grid_1 _combi.shp'
 start_season = datetime.date(2018, 5, 6)
 end_season = datetime.date(2018, 5, 8)
 
-s1_winterwheat_field = gs_downloader.ProductQueryParams()
+s1_winterwheat_field = gs_downloader.Query()
 s1_winterwheat_field.acquisition_date_range(start_season, end_season)
 s1_winterwheat_field.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH',
                                      orbitdirection='Ascending') 
 s1_winterwheat_field.coords_from_file(test_file)  # MK44 2EE grid 3
-s2_winterwheat_field = gs_downloader.ProductQueryParams()
+s2_winterwheat_field = gs_downloader.Query()
 s2_winterwheat_field.acquisition_date_range(start_season, end_season)
 s2_winterwheat_field.product_details('S2', 'L2A', cloudcoverlimit=2)
 s2_winterwheat_field.coords_from_file(test_file)
