@@ -1,6 +1,7 @@
 *.pyc
 user_info.txt
 *.swp
+data
 /data/
 /quicklooks/
 .ipynb_checkpoints/
