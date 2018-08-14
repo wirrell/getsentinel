@@ -264,15 +264,11 @@ class Stacker():
                 info_ = [layer.info for date, layer in sorted(layers.items())]
                 transforms_ = [layer.transform for date, layer in
                                sorted(layers.items())]
-                if band == 'TCI':  # TCI images are multi-layer
-                    # and requires handling for 3 channel of TCI images
-                    new_layers = []
-                    for layer in layers_:
-                        layer = self._pad_layers(layer)
-                        new_layers.append(layer)
-                    layers_ = new_layers
-                else:
-                    layers_ = self._pad_layers(layers_)
+                layers_ = self._pad_layers(layers_)
+                if len(layers_) is 0:
+                    print("No data for ROI {0} in band {1} for the given"
+                          " products.".format(roi, band))
+                    continue
                 stack = np.stack(layers_, axis=0)
                 stack = np.ma.masked_where(stack == 0, stack)
                 stack = Stack(stack, info_, transforms_, roi)
@@ -288,14 +284,14 @@ class Stacker():
         height_max = 0
         width_max = 0
         for layer in layers:
-            height, width = layer.shape
+            depth, height, width = layer.shape
             if height > height_max:
                 height_max = height
             if width > width_max:
                 width_max = width
 
         for layer in layers:
-            height, width = layer.shape
+            depth, height, width = layer.shape
             height_add = height_max - height
             width_add = width_max - width
 
@@ -303,14 +299,14 @@ class Stacker():
                 if width_add % 2 is 0:
                     # pad right side of array
                     layer = np.pad(layer,
-                                   ((0, 0), (0, 1)),
+                                   ((0, 0), (0, 0), (0, 1)),
                                    'constant',
                                    constant_values=np.NAN)
                     width_add = width_add - 1
                     continue
                 # pad left side of array
                 layer = np.pad(layer,
-                               ((0, 0), (1, 0)),
+                               ((0, 0), (0, 0), (1, 0)),
                                'constant',
                                constant_values=np.NaN)
                 width_add = width_add - 1
@@ -319,14 +315,14 @@ class Stacker():
                 if height_add % 2 is 0:
                     # pad top of array
                     layer = np.pad(layer,
-                                   ((1, 0), (0, 0)),
+                                   ((0, 0), (1, 0), (0, 0)),
                                    'constant',
                                    constant_values=0)
                     height_add = height_add - 1
                     continue
                 # pad bottom of array
                 layer = np.pad(layer,
-                               ((0, 1), (0, 0)),
+                               ((0, 0), (0, 1), (0, 0)),
                                'constant',
                                constant_values=0)
                 height_add = height_add - 1
@@ -392,7 +388,8 @@ class Stacker():
                                                               mask,
                                                               crop=True)
                 if np.max(out_image) >= cloud_threshold:
-                    self.cloud_info[ROI].append(datetime)
+                    if datetime not in self.cloud_info[ROI]:
+                        self.cloud_info[ROI].append(datetime)
 
         if snow_threshold:
             with rasterio.open(str(snow_mask), 'r') as snow:
@@ -400,7 +397,8 @@ class Stacker():
                                                               mask,
                                                               crop=True)
                 if np.max(out_image) >= snow_threshold:
-                    self.snow_info[ROI].append(datetime)
+                    if datetime not in self.snow_info[ROI]:
+                        self.snow_info[ROI].append(datetime)
 
     def _weather_report(self):
         """Prints the results of the weather check to the console."""
