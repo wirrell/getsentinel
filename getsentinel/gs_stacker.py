@@ -19,7 +19,6 @@ Investigate doing the masking using `gdal` instead of `rasterio`.
 """
 
 from . import gs_config
-import os
 import datetime
 import warnings
 from pathlib import Path
@@ -115,11 +114,11 @@ class Stacker():
         """Sets the attribute `band_list` to the passed bands.
 
         Valid bands for S1 GRD products there are: 'vv', 'vh'.
-        Valid bands for S2 L2A products are:
+        Valid bands for S2 L2A products are: 
                           '10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
                                  'WVP'],
                           '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI',
+                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI', 
                                  'WVP'],
                           '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
                                  'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
@@ -164,14 +163,14 @@ class Stacker():
         s2_valid_bands = {'10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
                                  'WVP'],
                           '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI',
+                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI', 
                                  'WVP'],
                           '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
                                  'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
                                  'TCI', 'WVP']}
         if s2_resolution:
             s2_valid_bands = s2_valid_bands[str(s2_resolution)]
-
+        
 
         if s1_band_list and s2_resolution is not 10:
             warnings.warn("Sentinel-1 GRD products are 10m resolution pixels."
@@ -420,7 +419,7 @@ class Stacker():
                 if len(self.cloud_info[roi]) is 0:
                     print("         ", "NONE")
                 for datetime in self.cloud_info[roi]:
-                    print("         ", datetime)
+                    print("         ", datetime)     
 
         if snow_threshold:
             print("The following ROIs have SNOW cover probability above the"
@@ -431,7 +430,7 @@ class Stacker():
                 if len(self.snow_info[roi]) is 0:
                     print("         ", "NONE")
                 for datetime in self.snow_info[roi]:
-                    print("         ", datetime)
+                    print("         ", datetime)     
 
     def _extract_data(self, uuid: str, band: str):
         """
@@ -468,7 +467,7 @@ class Stacker():
                 if band in str(child):
                     proc_file = child
                     break
-
+            
         if platform == 'Sentinel-1':
             if filename.endswith('.SAFE'):
                 raise RuntimeError("Product {0} is an unprocessed Sentinel-1 "
@@ -502,7 +501,7 @@ class Stacker():
 
         with rasterio.open(str(proc_file), 'r') as raster:
             raster_epsg = raster.crs.to_epsg()
-
+                
             # for all of the corresponding ROIs related to this product
             for ROI in associated_ROIs:
                 mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
@@ -527,7 +526,7 @@ class Stacker():
                     # data they represent. Ie. the ROI is in the dead zone!
                     continue
 
-                if '1' in platform:
+                if '1' in platform: 
                     # out_image is 3D when ie. [2, X, Y] and we only need the 2D
                     # either vv or vh
                     if out_image.shape[0] is not 1:
@@ -542,7 +541,7 @@ class Stacker():
 
                 date = product['beginposition']
                 self._layerbank[ROI][band][date] = layer
-
+                    
     def _allocate_ROIs(self):
         """
         Checks product boundaries against ROI areas and allocates ROIs to
@@ -606,11 +605,16 @@ class Stacker():
                               " to generate a mask for the Sentinel file.")
             layer = shp.GetLayer()
             shp_crs = layer.GetSpatialRef()
+            if shp_crs is None:  # means the file has not been georeferenced
+                raise RuntimeError("Could not retrieve the co-ordinate"
+                                   " reference system data from the meta"
+                                   " data of the geo-file {0}.\n"
+                                   " The file may not be correctly"
+                                   " georeferenced.".format(filepath))
             transform = osr.CoordinateTransformation(shp_crs, wgs84)
 
             if suffix == '.shp':
-                # weird IO error so explicitly outputting path
-                shp = shapefile.Reader(geo_file.as_posix())
+                shp = shapefile.Reader(str(geo_file))
                 # extract all points from all shapes
                 for shape in shp.shapes():
                     for point in shape.points:  # in the file
