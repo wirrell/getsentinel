@@ -605,10 +605,16 @@ class Stacker():
                               " to generate a mask for the Sentinel file.")
             layer = shp.GetLayer()
             shp_crs = layer.GetSpatialRef()
+            if shp_crs is None:  # means the file has not been georeferenced
+                raise RuntimeError("Could not retrieve the co-ordinate"
+                                   " reference system data from the meta"
+                                   " data of the geo-file {0}.\n"
+                                   " The file may not be correctly"
+                                   " georeferenced.".format(filepath))
             transform = osr.CoordinateTransformation(shp_crs, wgs84)
 
             if suffix == '.shp':
-                shp = shapefile.Reader(geo_file)
+                shp = shapefile.Reader(str(geo_file))
                 # extract all points from all shapes
                 for shape in shp.shapes():
                     for point in shape.points:  # in the file

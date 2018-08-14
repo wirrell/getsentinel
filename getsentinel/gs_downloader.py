@@ -49,7 +49,7 @@ import shapefile
 import geojson
 from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
-from osgeo import ogr, osr
+from osgeo import gdal, ogr, osr
 from . import gs_localmanager
 from . import gs_gridtest
 from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
@@ -160,6 +160,12 @@ class Query:
         shp = ogr.Open(filepath)
         layer = shp.GetLayer()
         shp_crs = layer.GetSpatialRef()
+        if shp_crs is None:  # means the file has not been georeferenced
+            raise RuntimeError("Could not retrieve the co-ordinate"
+                               " reference system data from the meta"
+                               " data of the geo-file {0}.\n"
+                               " The file may not be correctly"
+                               " georeferenced.".format(filepath))
 
         x_coords = []
         y_coords = []
