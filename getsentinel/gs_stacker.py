@@ -260,7 +260,6 @@ class Stacker():
 
         for roi, bands in self._layerbank.items():
             for band, layers in bands.items():
-                print(band)
                 layers_ = [layer for date, layer in sorted(layers.items())]
                 info_ = [layer.info for date, layer in sorted(layers.items())]
                 transforms_ = [layer.transform for date, layer in
