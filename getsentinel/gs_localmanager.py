@@ -88,11 +88,7 @@ product originates.
 """
 
 import json
-<<<<<<< HEAD
-import os
-=======
 import warnings
->>>>>>> master
 from pathlib import Path
 from .gs_config import DATA_PATH
 from . import gs_downloader
