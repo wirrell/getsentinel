@@ -260,6 +260,7 @@ class Stacker():
 
         for roi, bands in self._layerbank.items():
             for band, layers in bands.items():
+                print(band)
                 layers_ = [layer for date, layer in sorted(layers.items())]
                 info_ = [layer.info for date, layer in sorted(layers.items())]
                 transforms_ = [layer.transform for date, layer in
@@ -274,7 +275,7 @@ class Stacker():
                 stack = Stack(stack, info_, transforms_, roi)
                 # mask all the zero values in the output array sounding the
                 # region of interest
-            self.stack_list[roi][band] = stack
+                self.stack_list[roi][band] = stack
 
     def _pad_layers(self, layers):
         """Pads the layers with zeroes so they conform to a uniform shape."""
@@ -429,6 +430,7 @@ class Stacker():
                     print("         ", "NONE")
                 for datetime in self.snow_info[roi]:
                     print("         ", datetime)     
+            print("\n")
 
     def _extract_data(self, uuid: str, band: str):
         """
