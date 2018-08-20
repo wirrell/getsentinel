@@ -157,6 +157,7 @@ class Query:
         wgs84 = osr.SpatialReference()
         wgs84.ImportFromEPSG(4326)
 
+
         shp = ogr.Open(filepath)
         layer = shp.GetLayer()
         shp_crs = layer.GetSpatialRef()
@@ -180,12 +181,16 @@ class Query:
         if file_type == '.geojson':
             with open(filepath, 'r') as f:
                 gjson = geojson.load(f)
-                features = gjson['features']
-                for feature in features:
-                    coords = geojson.utils.coords(feature)
-                    for coord in coords:
-                        x_coords.append(coord[0])
-                        y_coords.append(coord[1])
+                if type(gjson) is geojson.feature.FeatureCollection:
+                    features = gjson['features']
+                    for feature in features:
+                        coords = geojson.utils.coords(feature)
+                        for coord in coords:
+                            x_coords.append(coord[0])
+                            y_coords.append(coord[1])
+                else:
+                    raise RuntimeError("Passed GeoJSON objects must be feature"
+                                       " collections.")
 
         coords = list(zip(x_coords, y_coords))
         m = MultiPoint(coords)  # import into shapely
