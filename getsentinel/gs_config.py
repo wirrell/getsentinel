@@ -28,12 +28,6 @@ DATA_PATH : str
     The relative or absolute filepath to the data storage directory.
 QUICKLOOKS_PATH : str
     The relative or absolute filepath to the quicklooks storage directory.
-S1GRAPHS_PATH : str
-    The relative or absolute filepath to the Sentinel-1 toolbox processing
-    graphs.
-S2GRAPHS_PATH : str
-    The relative or absolute filepath to the Sentinel-2 toolbox processing
-    graphs.
 
 """
 
@@ -110,10 +104,8 @@ def set_userinfo(info_dict=False):
             gpt = info_dict['gpt']
             data = info_dict['data']
             qlooks = info_dict['qlooks']
-            s1graphs = info_dict['s1graphs']
-            s2graphs = info_dict['s2graphs']
-            _save_config(user, passw, sen2cor, gpt, data, qlooks, s1graphs,
-                         s2graphs)
+            _save_config(user, passw, sen2cor, gpt, data, qlooks)
+
             return
         except KeyError:
             raise KeyError("The dictionary passed to"
@@ -137,21 +129,11 @@ def set_userinfo(info_dict=False):
                        default)
     if not qlooks:
         qlooks = default
-    default = 's1graphs/'
-    s1graphs = _ask_user("the path to the SNAP Sentinel-1 graph files",
-                         default)
-    if not s1graphs:
-        s1graphs = default
-    default = 's2graphs/'
-    s2graphs = _ask_user("the path to the SNAP Sentinel-2 graph files",
-                         default)
-    if not s2graphs:
-        s2graphs = default
 
-    _save_config(user, passw, sen2cor, gpt, data, qlooks, s1graphs, s2graphs)
+    _save_config(user, passw, sen2cor, gpt, data, qlooks)
 
 
-def _save_config(user, passw, sen2cor, gpt, data, qlooks, s1graphs, s2graphs):
+def _save_config(user, passw, sen2cor, gpt, data, qlooks):
     """Saves all the details to the config file."""
 
     config_string = ("*getsentinel config file*\n"
@@ -160,12 +142,10 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks, s1graphs, s2graphs):
                      "sen2core_path={2}\n"
                      "snap_gpt={3}\n"
                      "data_path={4}\n"
-                     "quicklooks_path={5}\n"
-                     "s1graph_path={6}\n"
-                     "s2graph_path={7}")
+                     "quicklooks_path={5}\n")
 
     config_string = config_string.format(user, passw, sen2cor, gpt, data,
-                                         qlooks, s1graphs, s2graphs)
+                                         qlooks)
 
     with open(CONFIG_PATH, 'w') as config_file:
         config_file.write(config_string)
@@ -181,9 +161,7 @@ USER_INFO_DICT = {'user': 'ESA_username',
                   'sen2cor': '/path/to/sen2cor',
                   'gpt': '/path/to/gpt',
                   'data': '/path/to/store/data',
-                  'qlooks': '/path/to/store/quicklooks',
-                  's1graphs': '/path/to/store/s1graphs',
-                  's2graphs': '/path/to/store/s2graphs'}
+                  'qlooks': '/path/to/store/quicklooks'}
 
 ESA_USERNAME = _config_info[0]
 ESA_PASSWORD = _config_info[1]
@@ -191,5 +169,3 @@ SEN2COR_ROOT_PATH = _config_info[2]
 GPT_ROOT_PATH = _config_info[3]
 DATA_PATH = _config_info[4]
 QUICKLOOKS_PATH = _config_info[5]
-S1GRAPHS_PATH = _config_info[6]
-S2GRAPHS_PATH = _config_info[7]

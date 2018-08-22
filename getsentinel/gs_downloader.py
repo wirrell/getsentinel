@@ -33,6 +33,9 @@ Basic usage example::
     hub.download_quicklooks(product_list)
     hub.download_products(product_list)
 
+TODO
+----
+Possibly implement extra kwargs in query
 """
 
 
