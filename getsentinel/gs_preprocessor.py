@@ -1,10 +1,25 @@
-"""
-Script to invoke the sen2cor processor for S2 and gpt for S1
-TODO:
-    class for invoking processors
-    product_entry fields to modify:
+"""getsentinel gs_preprocessor.py
 
-@author: Joe Fennell
+Invokes the sen2cor processor for S2 and gpt for S1 to processed products to a
+usable level.
+
+Example
+-------
+Basic usage example::
+
+    from getsentinel import gs_preprocessor
+
+    for_processing = gs_preprocessor.get_processable_files()
+
+    for uuid, pipeline in inventory.items():
+        gs_preprocessor.process(uuid, pipeline)
+
+
+Todo
+----
+class for invoking processors
+product_entry fields to modify:
+Implmenet S3 support
 """
 
 from . import gs_localmanager
@@ -14,12 +29,20 @@ import warnings
 import os, shutil, subprocess
 
 def get_processable_files(inventory=None, ignore_processed=True):
-    """
-    Checks the inventory file for compatible file types which have
+    """Checks the inventory file for compatible file types which have
     not yet been processed.
-    Returns: dictionary where key is the UUID and value is the pipeline
+    
+    Parameters
+    ----------
+    inventory : dict, optional
+        Product inventory containing product info keyed by produt uuid.
+        
+    Returns
+    -------
+    out : dict
+        Required pipelines 'S2', 'S1_UTM', etc keyed by corresponding product
+        uuid.
 
-    # for now  make a simple version which just handles S1 and S2
     """
 
     # get a product inventory if none supplied.
@@ -80,14 +103,28 @@ def get_processable_files(inventory=None, ignore_processed=True):
     return out
 
 def process(uuid,pipeline,inventory=None):
-    """
-    Runs the processing operation for a given uuid/pipeline pair.
-    pipeline = S2 outputs a SAFE format package
-    pipeline = S1 outputs a geotiff format package
+    """    Runs the processing operation for a given uuid/pipeline pair.
 
-    Arguments:
-    uuid - uuid of product
-    pipeline - currently either "S1_UTM" "S1_WGS84" "S2"
+
+    Parameters
+    ----------
+    uuid : str
+        uuid of the product to be processed.
+    pipeline : str
+        Processing pipeline to process the product. Currently either "S1_UTM",
+        "S1_WGS84", "S2".
+        pipeline = 'S2' outputs a SAFE format package
+        pipeline = 'S1*' outputs a geotiff format package
+
+    Returns
+    -------
+    bool
+        True when complete
+
+    Raises
+    ------
+    warning
+        If the processing pipeline fails. 
     """
     # get inventory file if not passed to function
     if inventory == None:
