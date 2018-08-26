@@ -6,15 +6,15 @@ multi-temporal data layers.
 
 Handles both Sentinel-1 and Sentinel-2 rasters over multiple time frames.
 
-Note
-----
-Currently only handles Sentinel-1 products.
+Example
+-------
 
 TODO
 ----
-Implement weather concealment checking for ROIs specific products.
-Implement S2 product handling.
 Investigate doing the masking using `gdal` instead of `rasterio`.
+Add usage example to docstring
+Revisit non-uniform arrays after masking. Is it fixed after applying the orbit
+files in gpt?
 
 """
 

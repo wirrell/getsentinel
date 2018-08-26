@@ -35,7 +35,8 @@ Basic usage example::
 
 TODO
 ----
-Possibly implement extra kwargs in query
+change Query init to accept platform name, start/end date, and possibly coords
+Revise 'BEST' product filtering to use sets(?) / be more efficient
 """
 
 
@@ -557,9 +558,7 @@ class CopernicusHubConnection:
                     if chunk:  # filter out keep-alive new chunks
                         handle.write(chunk)
 
-    def download_products(self,
-                          productlist,
-                          verify=False):
+    def download_products(self, productlist, verify=False):
         """Downloads the products product_list to the downloadpath directory.
 
         Parameters
@@ -832,9 +831,7 @@ class CopernicusHubConnection:
         return query
 
 
-def filter_overlaps(product_list,
-                    ROI,
-                    external_list=False):
+def filter_overlaps(product_list, ROI, external_list=False):
     """Filters out any overlapping products
 
     If the ROI coordinates are completely encompassed by two products and
