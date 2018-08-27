@@ -62,6 +62,19 @@ from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 class Query:
     """Holds the query parameters use in an ESA hub query.
 
+    Parameters
+    ----------
+    sat : str
+        Current Sentinel satellites supported: 'S1', 'S2'
+    start_date : datetime.date
+        The start date for the date range of the ESA query
+    end_date : datetime.date, optional
+        The end date for the date range of the ESA query
+    ROI : str or list, optional
+        Can be a `str` containing the path to a geo-referenced .geojson or
+        shapefile or a list of coordinates, see the `set_coordinates` and
+        `coords_from_file` methods for more information.
+
     Attributes
     ----------
     dates : tuple
@@ -86,10 +99,16 @@ class Query:
 
     """
 
-    def __init__(self):
+    def __init__(self, satellite, start_date, end_date=False, ROI=False):
 
-        self.dates = False
+        self.acquisition_date_range(start_date, end_date)
         self.coordinates = False
+        if ROI:
+            self.set_coordinates(ROI)
+        if satellite not in ['S1', 'S2']:
+            raise ValueError(" Only Sentinel-1 (use 'S1') and Sentinel-2 (use"
+                             " 'S2') products are currently supported.")
+        self.satellite = satellite
 
     def acquisition_date_range(self, acqstart, acqend=False):
         """Set the date range for the query.
@@ -236,6 +255,10 @@ class Query:
 
         """
 
+        if type(coordlist) is str:
+            self.coords_from_file(coordlist)
+            return
+
         if type(coordlist) is not list or len(coordlist[0]) is not 2:
             print(self.coordinates.__doc__)
             raise TypeError("You must follow the coordlist format "
@@ -265,7 +288,6 @@ class Query:
         self.ROI = ROI
 
     def product_details(self,
-                        sat,
                         proclevel=False,
                         producttype=False,
                         mode=False,
@@ -285,8 +307,6 @@ class Query:
 
         Parameters
         ----------
-        sat : str
-            Current satellites supported: 'S1', 'S2'
         proclevel : str, optional
             Current S1 processing levels supported: 'L0', 'L1', 'L2', 'ALL'
             Current S2 processing levels supported: 'L1C', 'L2A', 'BEST', 'ALL'
@@ -315,9 +335,8 @@ class Query:
 
         """
 
-        if sat not in ['S1', 'S2']:
-            raise ValueError(" Only Sentinel-1 (use 'S1') and Sentinel-2 (use"
-                             " 'S2') products are currently supported.")
+        sat = self.satellite
+
 
         if sat is 'S2':
             if (producttype or mode or resolution or polarisation or
