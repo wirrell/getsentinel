@@ -28,10 +28,8 @@ start_date = date(2018, 5, 6)
 end_date = date(2018, 5, 8)
 ROI = '/path/to/roi.geojson'
 
-query = gs_downloader.Query()
-query.acquisition_date_range(start_date, end_date)
-query.product_details('S2', 'BEST', cloudcoverlimit=50) 
-query.coords_from_file(ROI)
+query = gs_downloader.Query('S2', start_date, end_date, ROI)
+query.product_details('BEST', cloudcoverlimit=50) 
 
 # submit a query to the ESA database
 hub = gs_downloader.CopernicusHubConnection()
