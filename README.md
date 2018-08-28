@@ -8,14 +8,13 @@ getsentinel
 #### Requirements: 
                   Python 3.6
                   requests
-                  mgrs
                   clint
-                  shapely
                   pyshp
-                  convertbng
-                  rasterio
+                  geojson
+                  shapely
                   osgeo
                   numpy
+                  rasterio
 
 Example Usage:
 
