@@ -9,14 +9,14 @@ Handles both Sentinel-1 and Sentinel-2 rasters over multiple time frames.
 Example
 -------
 
-TODO
-----
-Investigate doing the masking using `gdal` instead of `rasterio`.
-Add usage example to docstring
-Revisit non-uniform arrays after masking. Is it fixed after applying the orbit
-files in gpt?
 
 """
+# TODO
+# ----
+# Investigate doing the masking using `gdal` instead of `rasterio`.
+# Add usage example to docstring
+# Revisit non-uniform arrays after masking. Is it fixed after applying orbit
+# files in gpt?
 
 from . import gs_config
 import datetime
@@ -114,15 +114,16 @@ class Stacker():
         """Sets the attribute `band_list` to the passed bands.
 
         Valid bands for S1 GRD products there are: 'vv', 'vh'.
-        Valid bands for S2 L2A products are: 
-                          '10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
-                                 'WVP'],
-                          '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI', 
-                                 'WVP'],
-                          '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                                 'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
-                                 'TCI', 'WVP']}
+        Valid bands for S2 L2A products are:
+
+          '10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
+                 'WVP'],
+          '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI',
+                 'WVP'],
+          '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
+                 'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
+                 'TCI', 'WVP']}
 
         Note
         ----
@@ -163,14 +164,13 @@ class Stacker():
         s2_valid_bands = {'10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
                                  'WVP'],
                           '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI', 
+                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI',
                                  'WVP'],
                           '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
                                  'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
                                  'TCI', 'WVP']}
         if s2_resolution:
             s2_valid_bands = s2_valid_bands[str(s2_resolution)]
-        
 
         if s1_band_list and s2_resolution is not 10:
             warnings.warn("Sentinel-1 GRD products are 10m resolution pixels."
@@ -416,8 +416,8 @@ class Stacker():
                 print("{0}:".format(roi))
                 if len(self.cloud_info[roi]) is 0:
                     print("         ", "NONE")
-                for datetime in self.cloud_info[roi]:
-                    print("         ", datetime)     
+                for datet in self.cloud_info[roi]:
+                    print("         ", datet)
 
         if snow_threshold:
             print("The following ROIs have SNOW cover probability above the"
@@ -427,8 +427,8 @@ class Stacker():
                 print("{0}:".format(roi))
                 if len(self.snow_info[roi]) is 0:
                     print("         ", "NONE")
-                for datetime in self.snow_info[roi]:
-                    print("         ", datetime)     
+                for datet in self.snow_info[roi]:
+                    print("         ", datet)
             print("\n")
 
     def _extract_data(self, uuid: str, band: str):
@@ -466,7 +466,7 @@ class Stacker():
                 if band in str(child):
                     proc_file = child
                     break
-            
+
         if platform == 'Sentinel-1':
             if filename.endswith('.SAFE'):
                 raise RuntimeError("Product {0} is an unprocessed Sentinel-1 "
@@ -497,10 +497,9 @@ class Stacker():
             roi = shapely.wkt.loads(shape_.ExportToWkt())
             return [roi]
 
-
         with rasterio.open(str(proc_file), 'r') as raster:
             raster_epsg = raster.crs.to_epsg()
-                
+
             # for all of the corresponding ROIs related to this product
             for ROI in associated_ROIs:
                 mask = [self.ROIs[ROI]]  # rasterio requires mask in iterable
@@ -525,8 +524,8 @@ class Stacker():
                     # data they represent. Ie. the ROI is in the dead zone!
                     continue
 
-                if '1' in platform: 
-                    # out_image is 3D when ie. [2, X, Y] and we only need the 2D
+                if '1' in platform:
+                    # out_image is 3D when ie. [2, X, Y] and we only need 2D
                     # either vv or vh
                     if out_image.shape[0] is not 1:
                         layer = Stack(out_image[layer_number], info,
@@ -540,7 +539,7 @@ class Stacker():
 
                 date = product['beginposition']
                 self._layerbank[ROI][band][date] = layer
-                    
+
     def _allocate_ROIs(self):
         """
         Checks product boundaries against ROI areas and allocates ROIs to
@@ -609,7 +608,7 @@ class Stacker():
                                    " reference system data from the meta"
                                    " data of the geo-file {0}.\n"
                                    " The file may not be correctly"
-                                   " georeferenced.".format(filepath))
+                                   " georeferenced.".format(geo_file))
             transform = osr.CoordinateTransformation(shp_crs, wgs84)
 
             if suffix == '.shp':
@@ -647,7 +646,7 @@ class Stacker():
 class Stack(np.ndarray):
     """Used to add an attribute to an existing numpy array.
     adapted from:
-        https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html
+    https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html
 
     Also masks all the zero values out of the array.
 

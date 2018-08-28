@@ -33,12 +33,11 @@ Basic usage example::
     hub.download_quicklooks(product_list)
     hub.download_products(product_list)
 
-TODO
-----
-change Query init to accept platform name, start/end date, and possibly coords
-Revise 'BEST' product filtering to use sets(?) / be more efficient
 """
 
+# TODO
+# ----
+# Revise 'BEST' product filtering to use sets(?) / be more efficient
 
 import datetime
 import os
@@ -53,7 +52,7 @@ import shapefile
 import geojson
 from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
-from osgeo import gdal, ogr, osr
+from osgeo import ogr, osr
 from . import gs_localmanager
 from . import gs_gridtest
 from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
@@ -179,7 +178,6 @@ class Query:
         # set WGS84 spatial ref
         wgs84 = osr.SpatialReference()
         wgs84.ImportFromEPSG(4326)
-
 
         shp = ogr.Open(filepath)
         layer = shp.GetLayer()
@@ -336,7 +334,6 @@ class Query:
         """
 
         sat = self.satellite
-
 
         if sat is 'S2':
             if (producttype or mode or resolution or polarisation or
@@ -655,8 +652,8 @@ class CopernicusHubConnection:
                       '{1}'.format(filename,
                                    uuid))
                 for chunk in progress.bar(
-                    response.iter_content(chunk_size=1024),
-                    expected_size=(filelength/1024) + 1):
+                        response.iter_content(chunk_size=1024),
+                        expected_size=(filelength/1024) + 1):
                     if chunk:  # filter out keep-alive new chunks
                         handle.write(chunk)
                         handle.flush()

@@ -1,18 +1,6 @@
-"""getsentinel configuration
+""" Handles getsentinel configuration
 
-Provides the paths for all the internal workings of getsentinal.
-
-Structure of the gs_config.txt file:
-
-    *getsentinel config file*
-    esa_username=username
-    esa_password=password
-    sen2core_path=/path/to/sen2core
-    snap_gpt=/path/to/snap/gpt
-    data_path=/path/tostore/alldownloaddata
-    quicklooks_path=/path/to/store/all/quicklooks
-    s1graph_path=/path/to/s1processing/xmlfiles
-    s2graph_path=/path/to/s2processing/xmlsfiles
+Provides the paths for all the internal workings of getsentinel.
 
 Attributes
 ----------
@@ -85,13 +73,14 @@ def set_userinfo(info_dict=False):
 
     Parameters
     ----------
-    info_dict : :obj:i`dict` of :obj:`str`, optional
+    info_dict : :obj:`dict` of :obj:`str`, optional
         If passed, must contain a `dict` of format contained in the global
-        variable `USER_INFO_DICT'
+        variable `USER_INFO_DICT`
 
     Returns
     -------
     None
+
     """
 
     # NOTE: consider adding hints on location of installation directories
