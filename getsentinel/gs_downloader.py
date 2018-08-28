@@ -12,14 +12,12 @@ Basic usage example::
     from getsentinel import gs_downloader
 
     shape_file = 'path/to/shapefile.shp'
-    start_date = datetime.date(2018, 1, 1)
-    end_date = datetime.date(2018, 6, 1)
+    start = datetime.date(2018, 1, 1)
+    end = datetime.date(2018, 6, 1)
 
     # initialise the query object
-    query = gs_downloader.Query()
-    query.acquisition_date_range(start_date, end_date)
-    query.product_details('S1', 'L1', 'GRD', 'IW', 'VV VH')
-    query.coords_from_file(shape_file)
+    query = gs_downloader.Query('S1', start, end, shape_file)
+    query.product_details('L1', 'GRD', 'IW', 'VV VH')
 
     # initialise the hub connection
     hub = gs_downloader.CopernicusHubConnection()

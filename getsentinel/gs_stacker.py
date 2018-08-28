@@ -9,12 +9,26 @@ Handles both Sentinel-1 and Sentinel-2 rasters over multiple time frames.
 Example
 -------
 
+    from getsentinel import gs_localmanager, gs_stacker
+
+    products = gs_localmanager.get_product_inventory()
+
+    roi = 'path/to/test_field.geojson' 
+    start = datetime.date(2018, 5, 6)
+    end = datetime.date(2018, 5, 7)
+
+    stacker = gs_stacker.Stacker(products, roi, start, end)
+
+    # get the True Colour Image at resolution 10m
+    stacker.set_bands(s2_band_list=['TCI'], s2_resolution=10)
+
+    data = stacker.generate_stacks()
+
 
 """
 # TODO
 # ----
 # Investigate doing the masking using `gdal` instead of `rasterio`.
-# Add usage example to docstring
 # Revisit non-uniform arrays after masking. Is it fixed after applying orbit
 # files in gpt?
 
