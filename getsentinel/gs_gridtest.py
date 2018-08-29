@@ -17,8 +17,26 @@ cwd = str(Path(__file__).resolve().parent)
 
 class grid_finder(object):
     """ Class for processing multiple grid lookup requests
+
+    Note
+    ----
     By default, this loads the lookup arrays into memory prior
     to calling a lookup request.
+
+    Parameters
+    ----------
+    LL_path : str, optional
+        Containes the path to the S2 tiling grid coordinate arrays
+    names_path : str, optional
+        Containes the path to the S2 tiling grid name arrays
+
+    Attributes
+    ----------
+    LLs : np.ndarray
+        NumPy array of the coordinates of the S2 tiling grid tiles
+    names : np.ndarray
+        NumPy array of the names of the S2 tiling grid tiles
+
     """
 
     def __init__(self, LL_path=cwd+'/s2_tiling_grid_np_ll.npy',
@@ -33,7 +51,19 @@ class grid_finder(object):
     def request(self, X):
         """
         Returns a list of grid squares intersecting X when
-        x is a 1D array or list in format [Lon_1,Lat_1,Lon_2,Lat_2,...]
+        X is a 1D array or list in format [Lon_1, Lat_1, Lon_2, Lat_2, ... ]
+        (WGS84 coordinates).
+
+        Parameters
+        ----------
+        X : list
+            List of WGS84 coordinates in format [Lon_1, Lat_1, ... ]
+
+        Returns
+        -------
+        list
+            Format is [[list, of, tiles, intersected], major_intersecting_tile]
+        
         """
         # Convert to 360 deg system WRT greenwich meridian at 0
         X = np.array(X)
@@ -58,11 +88,18 @@ class grid_finder(object):
 
 
 def WKT_to_list(wkt_multipolygon):
-    """
-    takes a Well Known Text string [i.e.
-    'POLYGON(((lon_1 lat_1,lon_2 lat_2, ... )))'] and returns a
-    list of coordinates in format [lon_1, lat1, lon2, lat2, ... ]
+    """Converts a wkt string to a list of coordinates.
 
+    Parameters
+    ----------
+    wkt_multipolygon : str
+        Contains a wkt formatted polygon `str`
+
+    Returns
+    -------
+    list
+        List of coordinates extracted from wkt string
+        
     """
     pairs = wkt_multipolygon.split('(')[-1].split(')')[0].split(',')
     out_list = []
@@ -77,8 +114,7 @@ def WKT_to_list(wkt_multipolygon):
 # private functions
 def _get_lookup_arrays(LL_path=cwd+'/s2_tiling_grid_np_ll.npy',
                        names_path=cwd+'/s2_tiling_grid_np_names.npy'):
-    """ Returns the array format grid polygons and names arrays
-
+    """Returns the array format grid polygons and names arrays
     """
     # The data are stored as a numpy array as this is the primary
     # format for use in
