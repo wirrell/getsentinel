@@ -133,10 +133,10 @@ class Stacker():
           '10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
                  'WVP'],
           '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI',
+                 'B07', 'B8A', 'B11', 'B12', 'SCL', 'TCI',
                  'WVP'],
           '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                 'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
+                 'B07', 'B8A', 'B09', 'B11', 'B12', 'SCL',
                  'TCI', 'WVP']}
 
         Note
@@ -178,10 +178,10 @@ class Stacker():
         s2_valid_bands = {'10': ['AOT', 'B02', 'B03', 'B04', 'B08', 'TCI',
                                  'WVP'],
                           '20': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                                 'B07', 'B08A', 'B11', 'B12', 'SCL', 'TCI',
+                                 'B07', 'B8A', 'B11', 'B12', 'SCL', 'TCI',
                                  'WVP'],
                           '60': ['AOT', 'B02', 'B03', 'B04', 'B05', 'B06',
-                                 'B07', 'B08A', 'B09', 'B11', 'B12', 'SCL',
+                                 'B07', 'B8A', 'B09', 'B11', 'B12', 'SCL',
                                  'TCI', 'WVP']}
         if s2_resolution:
             s2_valid_bands = s2_valid_bands[str(s2_resolution)]
