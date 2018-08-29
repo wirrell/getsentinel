@@ -169,35 +169,3 @@ def _get_intersects(X, Y, names):
             areas.append(square.intersection(X_shp).area)
     major_square = np.array(intersects)[np.array(areas).argmax()]
     return intersects, major_square
-
-
-# if __name__ == "__main__":
-#
-#     # test script
-#
-#     lookup = gs_gridtest.grid_finder()
-#
-#     # pakistan test polygon
-#     X = [70.07080078125,
-#     33.96158628979907,
-#     68.31298828125,
-#     30.80791068136646,
-#     71.3671875,
-#     28.285033294640684,
-#     74.15771484375,
-#     29.38217507514529,
-#     75.12451171875,
-#     32.175612478499325,
-#     72.83935546875,
-#     33.87041555094183,
-#     70.07080078125,
-#     33.96158628979907]
-#
-#     pakistan = lookup.request(X)
-#
-#     print('The polygon covers {} squares, including {}, {}, {},...'.format(
-#         len(pakistan),
-#         pakistan[0],
-#         pakistan[1],
-#         pakistan[2]
-#     ))
