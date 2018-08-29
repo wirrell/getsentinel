@@ -1,7 +1,8 @@
-"""
-Submodule for handling polygon intersection tests.
+"""Submodule for handling polygon intersection tests.
 
-NOTE: This is for testing longitude and latitude polygons
+Note
+----
+This is for testing longitude and latitude polygons
 against the sentinel 2 tiling grid. It may be unstable with
 very large polygons (>150 grid squares) due to the optimisation.
 
