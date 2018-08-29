@@ -49,8 +49,7 @@ class grid_finder(object):
         self.LLs[:, ::2] = _to_360(self.LLs[:, ::2])
 
     def request(self, X):
-        """
-        Returns a list of grid squares intersecting X when
+        """Returns a list of grid squares intersecting X when
         X is a 1D array or list in format [Lon_1, Lat_1, Lon_2, Lat_2, ... ]
         (WGS84 coordinates).
 
