@@ -572,7 +572,7 @@ class CopernicusHubConnection:
                     if chunk:  # filter out keep-alive new chunks
                         handle.write(chunk)
 
-    def download_products(self, productlist, verify=False):
+    def download_products(self, products, verify=False):
         """Downloads the products product_list to the downloadpath directory.
 
         Parameters
@@ -588,6 +588,9 @@ class CopernicusHubConnection:
         None
         """
 
+        # Copy the dict so that it doesnt get cleared and can still be used in
+        # a parent script
+        productlist = products.copy()
         downloadpath = DATA_PATH  # imported from gs_config
         product_inventory = gs_localmanager.get_product_inventory()
         already_downloaded = list(product_inventory.keys())
