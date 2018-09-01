@@ -52,7 +52,6 @@ from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
 from osgeo import ogr, osr
 from . import gs_localmanager
-from . import gs_gridtest
 from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
 
 
@@ -705,19 +704,7 @@ class CopernicusHubConnection:
                     continue
                 if field.get('name') != 'None':  # contain redudancies
                     product[field.get('name')] = field.text
-            # TODO: Implement 'utmzone' info
             product['userprocessed'] = False
-            if 'tileid' not in product:  # get S1 prod. corresponding S2 tiles
-                finder = gs_gridtest.grid_finder()
-                coord_list = gs_gridtest.WKT_to_list(product['footprint'])
-                # returns list of all S2 tiles the product intersects
-                # and the majority tile in format
-                # ([tile1, tile2, ... ], maj_tile)
-                tiles = finder.request(coord_list)
-                if product['platformname'] == 'Sentinel-1':
-                    product['tileid'] = tiles
-                if product['platformname'] == 'Sentinel-2':
-                    product['tileid'] = tiles[1]
             productlist[uuid] = product
 
         # filter out S2 L1C products if equivalent L2A exists
