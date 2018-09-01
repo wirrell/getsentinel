@@ -62,9 +62,9 @@ class Stacker():
     product_list : dict
         Contains the Sentinel products containing data relevant to the
         area coverered by the passed shapefiles or geojsons.
-    geo_files : list
+    geo_files : list or str
         A `list` of `str` containing the paths to all of the relevant
-        shapefiles or geojsons.
+        shapefiles or geojsons or a single `str`.
     start_date : datetime.date
         The start of the time period used for data extraction. Any Sentinel
         products passed to the `Stacker` but generated outside of this time
@@ -114,6 +114,8 @@ class Stacker():
         self.products, self.product_boundaries = self._gen_product_shapes(
             product_list)
         # generates the shapely objects for the ROIs
+        if type(geo_files) is str:
+            geo_files = [geo_files]
         self._gen_ROI_shapes(geo_files)
         # holds the uuids and corresponding shape files within each product
         self.job_list = self._allocate_ROIs()
@@ -253,6 +255,10 @@ class Stacker():
             if product['platformname'] == 'Sentinel-1':
                 band_list = self.band_list[0]
             elif product['platformname'] == 'Sentinel-2':
+                if '2A' not in product['producttype']:
+                    print("Product {0} is not processed to L2A, skipping."
+                          "".format(product['identifier']))
+                    continue
                 band_list = self.band_list[1]
             else:
                 raise ValueError("Unrecognised platform name in product {0}"
