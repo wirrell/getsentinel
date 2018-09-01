@@ -21,6 +21,7 @@ QUICKLOOKS_PATH : str
 
 import os
 import pathlib
+import json
 
 
 def _get_config():
@@ -31,22 +32,18 @@ def _get_config():
               " details:\n")
         set_userinfo()
     with open(CONFIG_PATH, 'r') as config_file:
-        data = config_file.read()
-        data = data.split('\n')[1:]
+        config = json.load(config_file)
 
-    config_info = []
+    keys = ['esa_username', 'esa_password', 'sen2cor_path', 'snap_gpt',
+            'data_path', 'quicklooks_path']
 
-    for i in range(len(data)):
-        data[i] = data[i].split('=')
-        if len(data[i]) is not 2:
-            error_msg = ("Config file is corrupted. Deleting the config file."
-                         "\n Re-run this script to re-enter the config"
-                         " details. \n")
-            pathlib.Path(CONFIG_PATH).unlink()
-            raise RuntimeError(error_msg)
-        config_info.append(data[i][1])
+    for key in keys:
+        if key not in config:
+            print("Config file is corrupted. Deleting config file.")
+            raise RuntimeError("A config file error occured. Please re-run "
+                               " your script and re-enter your config info.")
 
-    return config_info
+    return config
 
 
 def _ask_user(info_string, default=False):
@@ -125,19 +122,16 @@ def set_userinfo(info_dict=False):
 def _save_config(user, passw, sen2cor, gpt, data, qlooks):
     """Saves all the details to the config file."""
 
-    config_string = ("*getsentinel config file*\n"
-                     "esa_username={0}\n"
-                     "esa_password={1}\n"
-                     "sen2core_path={2}\n"
-                     "snap_gpt={3}\n"
-                     "data_path={4}\n"
-                     "quicklooks_path={5}\n")
-
-    config_string = config_string.format(user, passw, sen2cor, gpt, data,
-                                         qlooks)
+    config = {}
+    config['esa_username'] = user
+    config['esa_password'] = passw
+    config['sen2cor_path'] = sen2cor
+    config['snap_gpt'] = gpt
+    config['data_path'] = data
+    config['quicklooks_path'] = qlooks
 
     with open(CONFIG_PATH, 'w') as config_file:
-        config_file.write(config_string)
+        json.dump(config, config_file)
 
 
 INSTALL_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -152,9 +146,9 @@ USER_INFO_DICT = {'user': 'ESA_username',
                   'data': '/path/to/store/data',
                   'qlooks': '/path/to/store/quicklooks'}
 
-ESA_USERNAME = _config_info[0]
-ESA_PASSWORD = _config_info[1]
-SEN2COR_ROOT_PATH = _config_info[2]
-GPT_ROOT_PATH = _config_info[3]
-DATA_PATH = _config_info[4]
-QUICKLOOKS_PATH = _config_info[5]
+ESA_USERNAME = _config_info['esa_username']
+ESA_PASSWORD = _config_info['esa_password']
+SEN2COR_ROOT_PATH = _config_info['sen2cor_path']
+GPT_ROOT_PATH = _config_info['snap_gpt']
+DATA_PATH = _config_info['data_path']
+QUICKLOOKS_PATH = _config_info['quicklooks_path']
