@@ -272,15 +272,9 @@ class Query:
                              "must be the same.")
 
         # define Region Of Interest as a shapely object
-
         ROI = Polygon(coordlist)
 
-        finder = gs_gridtest.grid_finder()
-        coords = gs_gridtest.WKT_to_list(ROI.wkt)
-        tile_list = finder.request(coords)
-
-        self.tiles = tile_list
-        self.coordinates = coords
+        self.coordinates = ROI.exterior.coords
         self.ROI = ROI
 
     def product_details(self,
