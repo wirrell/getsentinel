@@ -15,18 +15,44 @@ Example
 from getsentinel import gs_process
 
 level1c_s2products = {uuid: info, uuid: info}
-level2a_s2products = {}
 
-for uuid in underprocessed_S2products:
-    new_uuid, new_info = gs_process.process(uuid)
-    level2a_s2products[new_uuid] = new_info
+for uuid in level1c_s2products:
+    level2a_s2products = gs_process.batch_process(uuid)
 
 """
 
 from pathlib import Path
 import shutil
 import subprocess
-from getsentinel import gs_localmanager, gs_config
+from . import gs_localmanager, gs_config
+
+
+def batch_process(product_inventory, gpt_graph=False):
+    """Processes a batch of product and returns the new processed products
+    uuids and info.
+
+    Parameters
+    ----------
+    product_inventory : dict
+        Contains products as supplied in {uuid: info, uuid: info} format.
+    gpt_graph : str, optional
+        The path to the gpt tool graph to be used to process any Sentinel-1
+        products supplied.
+
+    Returns
+    -------
+    dict
+        Contains the new processed product uuids and info.
+
+    """
+
+    processed_products = {}
+
+    for uuid in product_inventory:
+        new_uuid, new_info = process(uuid, gpt_graph)
+        processed_products[new_uuid] = new_info
+
+    return processed_products
 
 
 def process(uuid, gpt_graph=False):
