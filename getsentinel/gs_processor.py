@@ -85,7 +85,8 @@ def process(uuid, gpt_graph=False):
     if platform == 'Sentinel-1':
         if not gpt_graph:
             raise RuntimeError("You must supply a SNAP generated Sentinel-1 "
-                               "processing .xml graph file.")
+                               "processing .xml graph file when processing "
+                               " Sentinel-1 products.")
         new_uuid, new_product = _s1process(uuid, product, gpt_graph)
 
     if platform == 'Sentinel-2':
@@ -139,7 +140,7 @@ def _s2process(uuid, product):
     """Process a Level 1C Sentinel-2 file using S2."""
 
     # Skip downloaded products that are Level-2A already
-    if product['processinglevel'] != 'Level-1C':
+    if '2A' in product['processinglevel']:
         return uuid, product
 
     filename = product['filename']
