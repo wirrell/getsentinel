@@ -20,6 +20,9 @@ for uuid in level1c_s2products:
     level2a_s2products = gs_process.batch_process(uuid)
 
 """
+# TODO: Implement processed project inventory checking to prevent re-processing
+# products that have already been processed.
+
 
 from pathlib import Path
 import shutil
