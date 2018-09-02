@@ -142,7 +142,7 @@ _config_info = _get_config()
 
 USER_INFO_DICT = {'user': 'ESA_username',
                   'passw': 'ESA_password',
-                  'sen2cor': '/path/to/sen2cor',
+                  'sen2cor': '/path/to/sen2cor/L2A_Process',
                   'gpt': '/path/to/gpt',
                   'data': '/path/to/store/data',
                   'qlooks': '/path/to/store/quicklooks'}
