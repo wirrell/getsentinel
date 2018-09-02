@@ -102,7 +102,8 @@ def set_userinfo(info_dict=False):
 
     user = _ask_user("your ESA SciHub username")
     passw = _ask_user("your ESA SciHub password")
-    sen2cor = _ask_user("the absolute path to your ESA sen2cor installation")
+    sen2cor = _ask_user("the absolute path to your ESA sen2cor installation "
+                        "L2A_Process tool")
     gpt = _ask_user("the absolute path to your SNAP installation gpt tool")
     default = 'data/'
     data = _ask_user("the path where you want your Sentinel data to be stored",
