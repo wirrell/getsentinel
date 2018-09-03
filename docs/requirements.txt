@@ -1,7 +1,7 @@
 requests
 clint
 pyshp
-python-geojson
+geojson
 shapely
 gdal
 numpy
