@@ -9,6 +9,7 @@ and extraction of Sentienl data.
    :caption: Contents:
 
    Installation<installation.rst>
+   Modules<modules.rst>
 
 
 Quick Start Example
