@@ -7,6 +7,8 @@ Installation
 
 or from source @ https://www.bitbucket.org/wirrell/getsentinel
 
+If you do not already have the GDAL C libraries installed, install them.
+
 If you are having troubled with the GDAL installation, try this StackOverflow
 answer:
 
