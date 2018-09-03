@@ -24,6 +24,14 @@ import pathlib
 import json
 
 
+USER_INFO_DICT = {'user': 'ESA_username',
+                  'passw': 'ESA_password',
+                  'sen2cor': '/path/to/sen2cor/L2A_Process',
+                  'gpt': '/path/to/gpt',
+                  'data': '/path/to/store/data',
+                  'qlooks': '/path/to/store/quicklooks'}
+
+
 def _get_config():
     """Loads in the config details from the gs_config.txt file."""
 
@@ -141,13 +149,6 @@ INSTALL_PATH = os.path.dirname(os.path.realpath(__file__))
 CONFIG_PATH = os.path.join(INSTALL_PATH, 'gs_config.txt')
 
 _config_info = _get_config()
-
-USER_INFO_DICT = {'user': 'ESA_username',
-                  'passw': 'ESA_password',
-                  'sen2cor': '/path/to/sen2cor/L2A_Process',
-                  'gpt': '/path/to/gpt',
-                  'data': '/path/to/store/data',
-                  'qlooks': '/path/to/store/quicklooks'}
 
 ESA_USERNAME = _config_info['esa_username']
 ESA_PASSWORD = _config_info['esa_password']
