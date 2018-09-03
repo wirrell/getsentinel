@@ -336,11 +336,8 @@ class Query:
             if proclevel not in ['L1C', 'L2A', 'BEST', 'ALL']:
                 print(self.product_details.__doc__)
                 raise ValueError
-            if cloudcoverlimit:
-                self.cloudlimit = cloudcoverlimit
-                if type(cloudcoverlimit) is not int:
-                    print(self.product_details.__doc__)
-                    raise ValueError
+            if type(cloudcoverlimit) is int:
+                self.cloudcoverlimit = cloudcoverlimit
 
         if sat is 'S1':
             if proclevel and proclevel not in ['L0', 'L1', 'L2', 'ALL']:
@@ -804,9 +801,9 @@ class CopernicusHubConnection:
                 term_join(key, parameters.details[key])
 
         # If cloud cover limit is set for S2 products
-        if hasattr(parameters, 'cloudlimit'):
+        if hasattr(parameters, 'cloudcoverlimit'):
             field = 'cloudcoverpercentage:'
-            value = '[0 TO {0}]'.format(parameters.cloudlimit)
+            value = '[0 TO {0}]'.format(parameters.cloudcoverlimit)
             term_join(field, value)
 
         # If searching for S1 products, can directly add required proc level
