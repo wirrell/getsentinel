@@ -188,7 +188,7 @@ class Stacker():
         if s2_resolution:
             s2_valid_bands = s2_valid_bands[str(s2_resolution)]
 
-        if s1_band_list and s2_resolution is not 10:
+        if s1_band_list and s2_resolution:
             warnings.warn("Sentinel-1 GRD products are 10m resolution pixels."
                           " Combining Sentinel-2 products with resolution of"
                           " 20m or 60m with Sentinel-1 products will result in"
@@ -548,10 +548,11 @@ class Stacker():
                     # out_image is 3D when ie. [2, X, Y] and we only need 2D
                     # either vv or vh
                     if out_image.shape[0] is not 1:
-                        layer = Stack(out_image[layer_number], info,
+                        layers = np.split(out_image, 2)
+                        layer = Stack(layers[layer_number], info,
                                       out_transform)
                     else:
-                        layer = Stack(out_image[0], info,
+                        layer = Stack(out_image, info,
                                       out_transform)
 
                 if '2' in platform:
