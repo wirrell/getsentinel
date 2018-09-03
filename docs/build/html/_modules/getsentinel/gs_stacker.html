@@ -1,0 +1,807 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>getsentinel.gs_stacker &#8212; getsentinel Dissertation Release documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for getsentinel.gs_stacker</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Extracts data from Sentinel products for given regions of interest.</span>
+
+<span class="sd">Postage stamp ROIs out of given rasters file in batch. After processing the</span>
+<span class="sd">Stacker object acts as a dictionary from which numpy arrays containing all the</span>
+<span class="sd">multi-temporal data layers.</span>
+
+<span class="sd">Handles both Sentinel-1 and Sentinel-2 rasters over multiple time frames.</span>
+
+<span class="sd">Example</span>
+<span class="sd">-------</span>
+
+<span class="sd">    from getsentinel import gs_localmanager, gs_stacker</span>
+
+<span class="sd">    products = gs_localmanager.get_product_inventory()</span>
+
+<span class="sd">    roi = &#39;path/to/test_field.geojson&#39; </span>
+<span class="sd">    start = datetime.date(2018, 5, 6)</span>
+<span class="sd">    end = datetime.date(2018, 5, 7)</span>
+
+<span class="sd">    stacker = gs_stacker.Stacker(products, roi, start, end)</span>
+
+<span class="sd">    # get the True Colour Image at resolution 10m</span>
+<span class="sd">    stacker.set_bands(s2_band_list=[&#39;TCI&#39;], s2_resolution=10)</span>
+
+<span class="sd">    data = stacker.generate_stacks()</span>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="c1"># TODO</span>
+<span class="c1"># ----</span>
+<span class="c1"># Investigate doing the masking using `gdal` instead of `rasterio`.</span>
+<span class="c1"># Revisit non-uniform arrays after masking. Is it fixed after applying orbit</span>
+<span class="c1"># files in gpt?</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">gs_config</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">shapely</span>
+<span class="kn">import</span> <span class="nn">shapefile</span>
+<span class="kn">import</span> <span class="nn">rasterio</span>
+<span class="kn">import</span> <span class="nn">rasterio.mask</span>
+<span class="kn">from</span> <span class="nn">osgeo</span> <span class="k">import</span> <span class="n">osr</span><span class="p">,</span> <span class="n">ogr</span>
+
+
+<div class="viewcode-block" id="Stacker"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_stacker.Stacker">[docs]</a><span class="k">class</span> <span class="nc">Stacker</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Creates stacks of arrays from a product list and a group of shape files.</span>
+
+<span class="sd">    Arrays contains the raster data each passed shapefile over Sentinel</span>
+<span class="sd">    products covering different dates/times.</span>
+
+<span class="sd">    Note</span>
+<span class="sd">    ----</span>
+<span class="sd">    The user does not need to concern themselves with checking that the</span>
+<span class="sd">    products passed contain data for for all the shapefiles. This class will</span>
+<span class="sd">    sort products to their corresponding shapefiles and filter out all null</span>
+<span class="sd">    data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    product_list : dict</span>
+<span class="sd">        Contains the Sentinel products containing data relevant to the</span>
+<span class="sd">        area coverered by the passed shapefiles or geojsons.</span>
+<span class="sd">    geo_files : list or str</span>
+<span class="sd">        A `list` of `str` containing the paths to all of the relevant</span>
+<span class="sd">        shapefiles or geojsons or a single `str`.</span>
+<span class="sd">    start_date : datetime.date</span>
+<span class="sd">        The start of the time period used for data extraction. Any Sentinel</span>
+<span class="sd">        products passed to the `Stacker` but generated outside of this time</span>
+<span class="sd">        period will be excluded from the extraction process.</span>
+<span class="sd">    end_date : datetime.date</span>
+<span class="sd">        The end of the time period used for data extraction. Inclusive.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    products : dict</span>
+<span class="sd">        Filtered copy of `product_list` passed to the object containing only</span>
+<span class="sd">        products generated between `start_date` and `end_date`.</span>
+<span class="sd">    product_boundaries : dict</span>
+<span class="sd">        Contains `shapely.geometry.Polygon` objects describing the boundaries</span>
+<span class="sd">        of each of the products in `products`.</span>
+<span class="sd">    geo_files : list</span>
+<span class="sd">        Contains a copy of `geo_files` passed to the object.</span>
+<span class="sd">    start_date : datetime.date</span>
+<span class="sd">        A copy of `start_date` passed to the object.</span>
+<span class="sd">    end_date : datetime.date</span>
+<span class="sd">        A copy of the `end_date` passed to the object.</span>
+<span class="sd">    job_list : dict</span>
+<span class="sd">        Contains keys of all the uuids of products passed to the object, with</span>
+<span class="sd">        their values being the shapefiles that are within the boundaries of</span>
+<span class="sd">        each product.</span>
+<span class="sd">    stack_list : dict</span>
+<span class="sd">        After the `run` method is called, this `dict` is populated with keys</span>
+<span class="sd">        that are the names of the shapefiles passed, with their values being</span>
+<span class="sd">        the corresponding processed `numpy` arrays.</span>
+<span class="sd">    band_list : list</span>
+<span class="sd">        `list` of `str` containing the product bands that are to be extracted</span>
+<span class="sd">        from the products.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">product_list</span><span class="p">,</span>
+                 <span class="n">geo_files</span><span class="p">,</span>
+                 <span class="n">start_date</span><span class="p">,</span>
+                 <span class="n">end_date</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">geo_files</span> <span class="o">=</span> <span class="n">geo_files</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start_date</span> <span class="o">=</span> <span class="n">start_date</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">end_date</span> <span class="o">=</span> <span class="n">end_date</span>
+        <span class="c1"># filters the product list and generates the shapely objects</span>
+        <span class="c1"># for the products</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">products</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_boundaries</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gen_product_shapes</span><span class="p">(</span>
+            <span class="n">product_list</span><span class="p">)</span>
+        <span class="c1"># generates the shapely objects for the ROIs</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">geo_files</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="n">geo_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">geo_files</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gen_ROI_shapes</span><span class="p">(</span><span class="n">geo_files</span><span class="p">)</span>
+        <span class="c1"># holds the uuids and corresponding shape files within each product</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">job_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allocate_ROIs</span><span class="p">()</span>
+        <span class="c1"># lists all the names of the shapefiles</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stack_list</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROIs</span><span class="p">}</span>
+        <span class="c1"># temporary store for the layers before final combination</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_layerbank</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stack_list</span><span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">band_list</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weather_check</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="Stacker.set_bands"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_stacker.Stacker.set_bands">[docs]</a>    <span class="k">def</span> <span class="nf">set_bands</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s1_band_list</span><span class="o">=</span><span class="p">[],</span> <span class="n">s2_band_list</span><span class="o">=</span><span class="p">[],</span> <span class="n">s2_resolution</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Sets the attribute `band_list` to the passed bands.</span>
+
+<span class="sd">        Valid bands for S1 GRD products there are: &#39;vv&#39;, &#39;vh&#39;.</span>
+<span class="sd">        Valid bands for S2 L2A products are:</span>
+
+<span class="sd">          &#39;10&#39;: [&#39;AOT&#39;, &#39;B02&#39;, &#39;B03&#39;, &#39;B04&#39;, &#39;B08&#39;, &#39;TCI&#39;,</span>
+<span class="sd">                 &#39;WVP&#39;],</span>
+<span class="sd">          &#39;20&#39;: [&#39;AOT&#39;, &#39;B02&#39;, &#39;B03&#39;, &#39;B04&#39;, &#39;B05&#39;, &#39;B06&#39;,</span>
+<span class="sd">                 &#39;B07&#39;, &#39;B8A&#39;, &#39;B11&#39;, &#39;B12&#39;, &#39;SCL&#39;, &#39;TCI&#39;,</span>
+<span class="sd">                 &#39;WVP&#39;],</span>
+<span class="sd">          &#39;60&#39;: [&#39;AOT&#39;, &#39;B02&#39;, &#39;B03&#39;, &#39;B04&#39;, &#39;B05&#39;, &#39;B06&#39;,</span>
+<span class="sd">                 &#39;B07&#39;, &#39;B8A&#39;, &#39;B09&#39;, &#39;B11&#39;, &#39;B12&#39;, &#39;SCL&#39;,</span>
+<span class="sd">                 &#39;TCI&#39;, &#39;WVP&#39;]}</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        Currently only supports S1 GRD products</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        s1_band_list : list</span>
+<span class="sd">            `list` of `str` containing the S1 bands the user wants extract from</span>
+<span class="sd">            the S1 products passed to `Stacker`.</span>
+<span class="sd">            Required form : [&#39;band1&#39;, &#39;band2&#39;, ... ]</span>
+<span class="sd">        s2_band_list : list</span>
+<span class="sd">            `list` of `str` containing the S2 bands the user wants extract from</span>
+<span class="sd">            the S2 products passed to `Stacker`.</span>
+<span class="sd">            Required form : [&#39;band1&#39;, &#39;band2&#39;, ... ]</span>
+<span class="sd">        s2_resolution : int, optional</span>
+<span class="sd">            Choose the band resolution of the Sentinel-2 bands. Can be `10`,</span>
+<span class="sd">            `20`, or `60`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the band strings passed are not valid bands.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># TODO: implement S2 bands as valid</span>
+
+        <span class="k">if</span> <span class="n">s2_band_list</span> <span class="ow">and</span> <span class="n">s2_resolution</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">60</span><span class="p">]:</span>
+            <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;You must specify a resolution of int 10, 20, or 60&quot;</span>
+                         <span class="s2">&quot; when stacking Sentinel-2 products.&quot;</span><span class="p">)</span>
+
+        <span class="n">s1_valid_bands</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;vv&#39;</span><span class="p">,</span> <span class="s1">&#39;vh&#39;</span><span class="p">]</span>
+        <span class="n">s2_valid_bands</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;10&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;AOT&#39;</span><span class="p">,</span> <span class="s1">&#39;B02&#39;</span><span class="p">,</span> <span class="s1">&#39;B03&#39;</span><span class="p">,</span> <span class="s1">&#39;B04&#39;</span><span class="p">,</span> <span class="s1">&#39;B08&#39;</span><span class="p">,</span> <span class="s1">&#39;TCI&#39;</span><span class="p">,</span>
+                                 <span class="s1">&#39;WVP&#39;</span><span class="p">],</span>
+                          <span class="s1">&#39;20&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;AOT&#39;</span><span class="p">,</span> <span class="s1">&#39;B02&#39;</span><span class="p">,</span> <span class="s1">&#39;B03&#39;</span><span class="p">,</span> <span class="s1">&#39;B04&#39;</span><span class="p">,</span> <span class="s1">&#39;B05&#39;</span><span class="p">,</span> <span class="s1">&#39;B06&#39;</span><span class="p">,</span>
+                                 <span class="s1">&#39;B07&#39;</span><span class="p">,</span> <span class="s1">&#39;B8A&#39;</span><span class="p">,</span> <span class="s1">&#39;B11&#39;</span><span class="p">,</span> <span class="s1">&#39;B12&#39;</span><span class="p">,</span> <span class="s1">&#39;SCL&#39;</span><span class="p">,</span> <span class="s1">&#39;TCI&#39;</span><span class="p">,</span>
+                                 <span class="s1">&#39;WVP&#39;</span><span class="p">],</span>
+                          <span class="s1">&#39;60&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;AOT&#39;</span><span class="p">,</span> <span class="s1">&#39;B02&#39;</span><span class="p">,</span> <span class="s1">&#39;B03&#39;</span><span class="p">,</span> <span class="s1">&#39;B04&#39;</span><span class="p">,</span> <span class="s1">&#39;B05&#39;</span><span class="p">,</span> <span class="s1">&#39;B06&#39;</span><span class="p">,</span>
+                                 <span class="s1">&#39;B07&#39;</span><span class="p">,</span> <span class="s1">&#39;B8A&#39;</span><span class="p">,</span> <span class="s1">&#39;B09&#39;</span><span class="p">,</span> <span class="s1">&#39;B11&#39;</span><span class="p">,</span> <span class="s1">&#39;B12&#39;</span><span class="p">,</span> <span class="s1">&#39;SCL&#39;</span><span class="p">,</span>
+                                 <span class="s1">&#39;TCI&#39;</span><span class="p">,</span> <span class="s1">&#39;WVP&#39;</span><span class="p">]}</span>
+        <span class="k">if</span> <span class="n">s2_resolution</span><span class="p">:</span>
+            <span class="n">s2_valid_bands</span> <span class="o">=</span> <span class="n">s2_valid_bands</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">s2_resolution</span><span class="p">)]</span>
+
+        <span class="k">if</span> <span class="n">s1_band_list</span> <span class="ow">and</span> <span class="n">s2_resolution</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Sentinel-1 GRD products are 10m resolution pixels.&quot;</span>
+                          <span class="s2">&quot; Combining Sentinel-2 products with resolution of&quot;</span>
+                          <span class="s2">&quot; 20m or 60m with Sentinel-1 products will result in&quot;</span>
+                          <span class="s2">&quot; incoherent data output at the per-pixel level.&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">s1_band_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">band</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">s1_valid_bands</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">set_bands</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Passed bands not in valid band list.&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">s2_band_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">band</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">s2_valid_bands</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">set_bands</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Passed bands not in valid band list.&#39;</span><span class="p">)</span>
+
+        <span class="n">bands</span> <span class="o">=</span> <span class="n">s1_band_list</span> <span class="o">+</span> <span class="n">s2_band_list</span>
+
+        <span class="k">for</span> <span class="n">roi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_layerbank</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">bands</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_layerbank</span><span class="p">[</span><span class="n">roi</span><span class="p">][</span><span class="n">band</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">band_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">s1_band_list</span><span class="p">,</span> <span class="n">s2_band_list</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">s2_resolution</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">s2_res</span> <span class="o">=</span> <span class="n">s2_resolution</span></div>
+
+<div class="viewcode-block" id="Stacker.generate_stacks"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_stacker.Stacker.generate_stacks">[docs]</a>    <span class="k">def</span> <span class="nf">generate_stacks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Runs the data layer extraction and stacking process.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        Currently only supports Sentinel-1 products.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            Contains all the generate `Stack` objects keyed by the names of</span>
+<span class="sd">            their corresponding shapefiles.</span>
+
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        NotImplementedError</span>
+<span class="sd">            If S2 products have been passed to `Stacker`.</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If `set_bands` has not been called before calling `run`.</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If any products other than S1 or S2 products are passed to</span>
+<span class="sd">            `Stacker`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">platforms</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">products</span><span class="p">[</span><span class="n">uuid</span><span class="p">][</span><span class="s1">&#39;platformname&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">uuid</span> <span class="ow">in</span>
+                     <span class="bp">self</span><span class="o">.</span><span class="n">products</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">platform</span> <span class="ow">in</span> <span class="n">platforms</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">platform</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;Sentinel-1&#39;</span><span class="p">,</span> <span class="s1">&#39;Sentinel-2&#39;</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Currently only supports Sentinel-1&quot;</span>
+                                          <span class="s2">&quot; and Sentinel-2 products.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">band_list</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please set the band list via&quot;</span>
+                             <span class="s2">&quot; .set_bands(band_list) before running.&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">uuid</span><span class="p">,</span> <span class="n">product</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">products</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># get the filepath for the product files in .SAFE</span>
+            <span class="k">if</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Sentinel-1&#39;</span><span class="p">:</span>
+                <span class="n">band_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">band_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Sentinel-2&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s1">&#39;2A&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;producttype&#39;</span><span class="p">]:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Product </span><span class="si">{0}</span><span class="s2"> is not processed to L2A, skipping.&quot;</span>
+                          <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;identifier&#39;</span><span class="p">]))</span>
+                    <span class="k">continue</span>
+                <span class="n">band_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">band_list</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unrecognised platform name in product </span><span class="si">{0}</span><span class="s2">&quot;</span>
+                                 <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;identifier&#39;</span><span class="p">]))</span>
+
+            <span class="c1"># extract bands from processed files</span>
+            <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="n">band_list</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_extract_data</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span> <span class="n">band</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_stacks</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weather_check</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_weather_report</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stack_list</span></div>
+
+    <span class="k">def</span> <span class="nf">_generate_stacks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Make the layers uniform and combine them into numpy array stacks.&quot;&quot;&quot;</span>
+
+        <span class="k">for</span> <span class="n">roi</span><span class="p">,</span> <span class="n">bands</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_layerbank</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">band</span><span class="p">,</span> <span class="n">layers</span> <span class="ow">in</span> <span class="n">bands</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">layers_</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer</span> <span class="k">for</span> <span class="n">date</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">layers</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span>
+                <span class="n">info_</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer</span><span class="o">.</span><span class="n">info</span> <span class="k">for</span> <span class="n">date</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">layers</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span>
+                <span class="n">transforms_</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer</span><span class="o">.</span><span class="n">transform</span> <span class="k">for</span> <span class="n">date</span><span class="p">,</span> <span class="n">layer</span> <span class="ow">in</span>
+                               <span class="nb">sorted</span><span class="p">(</span><span class="n">layers</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span>
+                <span class="n">layers_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pad_layers</span><span class="p">(</span><span class="n">layers_</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">layers_</span><span class="p">)</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No data for ROI </span><span class="si">{0}</span><span class="s2"> in band </span><span class="si">{1}</span><span class="s2"> for the given&quot;</span>
+                          <span class="s2">&quot; products.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">roi</span><span class="p">,</span> <span class="n">band</span><span class="p">))</span>
+                    <span class="k">continue</span>
+                <span class="n">stack</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">layers_</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">stack</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked_where</span><span class="p">(</span><span class="n">stack</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">stack</span><span class="p">)</span>
+                <span class="n">stack</span> <span class="o">=</span> <span class="n">Stack</span><span class="p">(</span><span class="n">stack</span><span class="p">,</span> <span class="n">info_</span><span class="p">,</span> <span class="n">transforms_</span><span class="p">,</span> <span class="n">roi</span><span class="p">)</span>
+                <span class="c1"># mask all the zero values in the output array sounding the</span>
+                <span class="c1"># region of interest</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stack_list</span><span class="p">[</span><span class="n">roi</span><span class="p">][</span><span class="n">band</span><span class="p">]</span> <span class="o">=</span> <span class="n">stack</span>
+
+    <span class="k">def</span> <span class="nf">_pad_layers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">layers</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Pads the layers with zeroes so they conform to a uniform shape.&quot;&quot;&quot;</span>
+
+        <span class="n">padded_layers</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">height_max</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">width_max</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">:</span>
+            <span class="n">depth</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">shape</span>
+            <span class="k">if</span> <span class="n">height</span> <span class="o">&gt;</span> <span class="n">height_max</span><span class="p">:</span>
+                <span class="n">height_max</span> <span class="o">=</span> <span class="n">height</span>
+            <span class="k">if</span> <span class="n">width</span> <span class="o">&gt;</span> <span class="n">width_max</span><span class="p">:</span>
+                <span class="n">width_max</span> <span class="o">=</span> <span class="n">width</span>
+
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers</span><span class="p">:</span>
+            <span class="n">depth</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">shape</span>
+            <span class="n">height_add</span> <span class="o">=</span> <span class="n">height_max</span> <span class="o">-</span> <span class="n">height</span>
+            <span class="n">width_add</span> <span class="o">=</span> <span class="n">width_max</span> <span class="o">-</span> <span class="n">width</span>
+
+            <span class="k">while</span> <span class="n">width_add</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">width_add</span> <span class="o">%</span> <span class="mi">2</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># pad right side of array</span>
+                    <span class="n">layer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span>
+                                   <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span>
+                                   <span class="s1">&#39;constant&#39;</span><span class="p">,</span>
+                                   <span class="n">constant_values</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">NAN</span><span class="p">)</span>
+                    <span class="n">width_add</span> <span class="o">=</span> <span class="n">width_add</span> <span class="o">-</span> <span class="mi">1</span>
+                    <span class="k">continue</span>
+                <span class="c1"># pad left side of array</span>
+                <span class="n">layer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span>
+                               <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+                               <span class="s1">&#39;constant&#39;</span><span class="p">,</span>
+                               <span class="n">constant_values</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">NaN</span><span class="p">)</span>
+                <span class="n">width_add</span> <span class="o">=</span> <span class="n">width_add</span> <span class="o">-</span> <span class="mi">1</span>
+
+            <span class="k">while</span> <span class="n">height_add</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">height_add</span> <span class="o">%</span> <span class="mi">2</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="c1"># pad top of array</span>
+                    <span class="n">layer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span>
+                                   <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+                                   <span class="s1">&#39;constant&#39;</span><span class="p">,</span>
+                                   <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                    <span class="n">height_add</span> <span class="o">=</span> <span class="n">height_add</span> <span class="o">-</span> <span class="mi">1</span>
+                    <span class="k">continue</span>
+                <span class="c1"># pad bottom of array</span>
+                <span class="n">layer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="n">layer</span><span class="p">,</span>
+                               <span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+                               <span class="s1">&#39;constant&#39;</span><span class="p">,</span>
+                               <span class="n">constant_values</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">height_add</span> <span class="o">=</span> <span class="n">height_add</span> <span class="o">-</span> <span class="mi">1</span>
+
+            <span class="n">padded_layers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">padded_layers</span>
+
+<div class="viewcode-block" id="Stacker.check_weather"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_stacker.Stacker.check_weather">[docs]</a>    <span class="k">def</span> <span class="nf">check_weather</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cloud</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">snow</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set a threshold for the probability of cloud or snow cover in the</span>
+<span class="sd">        region of interest.</span>
+
+<span class="sd">        If the probability cover provided by the ESA in the automated cloud and</span>
+<span class="sd">        snow masks is higher than the user-defined threshold, a warning is</span>
+<span class="sd">        thrown during stacking.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        cloud : int, optional</span>
+<span class="sd">            The percentrage threshold cloud probability for regions of</span>
+<span class="sd">            interest, above which the stacker throws a warning.</span>
+<span class="sd">        snow : int, optional</span>
+<span class="sd">            The percentrage threshold snow probability for regions of</span>
+<span class="sd">            interest, above which the stacker throws a warning.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">for</span> <span class="n">threshold</span> <span class="ow">in</span> <span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="n">snow</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">threshold</span> <span class="ow">and</span> <span class="p">(</span><span class="n">threshold</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">threshold</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please enter an int between 0 and 100&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">weather_check</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cloud_info</span> <span class="o">=</span> <span class="p">{</span><span class="n">ROI</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">ROI</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROIs</span><span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">snow_info</span> <span class="o">=</span> <span class="p">{</span><span class="n">ROI</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">ROI</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROIs</span><span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weather_thresholds</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cloud&#39;</span><span class="p">:</span> <span class="n">cloud</span><span class="p">,</span> <span class="s1">&#39;snow&#39;</span><span class="p">:</span> <span class="n">snow</span><span class="p">}</span></div>
+
+    <span class="k">def</span> <span class="nf">_weather_concealment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">tilepath</span><span class="p">,</span> <span class="n">ROI</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">datetime</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Checks the percentage likelihood of weather concealment using the</span>
+<span class="sd">        ESA provided masks.&quot;&quot;&quot;</span>
+
+        <span class="n">cloud_threshold</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weather_thresholds</span><span class="p">[</span><span class="s1">&#39;cloud&#39;</span><span class="p">]</span>
+        <span class="n">snow_threshold</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weather_thresholds</span><span class="p">[</span><span class="s1">&#39;snow&#39;</span><span class="p">]</span>
+
+        <span class="n">qi_data</span> <span class="o">=</span> <span class="n">tilepath</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;QI_DATA&#39;</span><span class="p">)</span>
+        <span class="n">cloud_mask</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">qi_data</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*CLD*20m.jp2&#39;</span><span class="p">))</span>
+        <span class="n">snow_mask</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">qi_data</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*SNW*20m.jp2&#39;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cloud_mask</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not locate the cloud mask for </span><span class="si">{0}</span><span class="s2">&quot;</span>
+                               <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">snow_mask</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not locate the snow mask for </span><span class="si">{0}</span><span class="s2">&quot;</span>
+                               <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+        <span class="n">cloud_mask</span> <span class="o">=</span> <span class="n">cloud_mask</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">snow_mask</span> <span class="o">=</span> <span class="n">snow_mask</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">cloud_threshold</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">cloud_mask</span><span class="p">),</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">cloud</span><span class="p">:</span>
+                <span class="n">out_image</span><span class="p">,</span> <span class="n">out_transform</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">mask</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span>
+                                                              <span class="n">mask</span><span class="p">,</span>
+                                                              <span class="n">crop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">out_image</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">cloud_threshold</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">datetime</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cloud_info</span><span class="p">[</span><span class="n">ROI</span><span class="p">]:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cloud_info</span><span class="p">[</span><span class="n">ROI</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetime</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">snow_threshold</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">snow_mask</span><span class="p">),</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">snow</span><span class="p">:</span>
+                <span class="n">out_image</span><span class="p">,</span> <span class="n">out_transform</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">mask</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">snow</span><span class="p">,</span>
+                                                              <span class="n">mask</span><span class="p">,</span>
+                                                              <span class="n">crop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">out_image</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">snow_threshold</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">datetime</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">snow_info</span><span class="p">[</span><span class="n">ROI</span><span class="p">]:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">snow_info</span><span class="p">[</span><span class="n">ROI</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">datetime</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_weather_report</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Prints the results of the weather check to the console.&quot;&quot;&quot;</span>
+
+        <span class="n">cloud_threshold</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weather_thresholds</span><span class="p">[</span><span class="s1">&#39;cloud&#39;</span><span class="p">]</span>
+        <span class="n">snow_threshold</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weather_thresholds</span><span class="p">[</span><span class="s1">&#39;snow&#39;</span><span class="p">]</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">gs_stacker WEATHER CHECK RESULTS:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">cloud_threshold</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;The following ROIs have CLOUD cover probability above the&quot;</span>
+                  <span class="s2">&quot; specified </span><span class="si">{0}</span><span class="s2">% threshold on these dates:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                  <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cloud_threshold</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">roi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cloud_info</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">:&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">roi</span><span class="p">))</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cloud_info</span><span class="p">[</span><span class="n">roi</span><span class="p">])</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;         &quot;</span><span class="p">,</span> <span class="s2">&quot;NONE&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">datet</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cloud_info</span><span class="p">[</span><span class="n">roi</span><span class="p">]:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;         &quot;</span><span class="p">,</span> <span class="n">datet</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">snow_threshold</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;The following ROIs have SNOW cover probability above the&quot;</span>
+                  <span class="s2">&quot; specified </span><span class="si">{0}</span><span class="s2">% threshold on these dates:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                  <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">snow_threshold</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">roi</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">snow_info</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">:&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">roi</span><span class="p">))</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">snow_info</span><span class="p">[</span><span class="n">roi</span><span class="p">])</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;         &quot;</span><span class="p">,</span> <span class="s2">&quot;NONE&quot;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">datet</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">snow_info</span><span class="p">[</span><span class="n">roi</span><span class="p">]:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;         &quot;</span><span class="p">,</span> <span class="n">datet</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_extract_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uuid</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">band</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks the joblist to see what ROIs need to be postage stamped out of</span>
+<span class="sd">        the given uuid and extracts them using rasterio.mask.</span>
+
+<span class="sd">        Saves the product metadata to each ROI&#39;s extracted numpy array and</span>
+<span class="sd">        add it to the corresponding list in the layer_stack.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">product</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">products</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;filename&#39;</span><span class="p">]</span>
+        <span class="n">datetime</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">],</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;from&#39;</span><span class="p">:</span> <span class="n">uuid</span><span class="p">,</span>
+                <span class="s1">&#39;platform&#39;</span><span class="p">:</span> <span class="n">platform</span><span class="p">,</span>
+                <span class="s1">&#39;datetime&#39;</span><span class="p">:</span> <span class="n">datetime</span><span class="p">,</span>
+                <span class="s1">&#39;band&#39;</span><span class="p">:</span> <span class="n">band</span><span class="p">,</span>
+                <span class="s1">&#39;processing&#39;</span><span class="p">:</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;producttype&#39;</span><span class="p">]}</span>
+
+        <span class="k">if</span> <span class="n">platform</span> <span class="o">==</span> <span class="s1">&#39;Sentinel-2&#39;</span><span class="p">:</span>
+            <span class="n">data_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">gs_config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span>
+            <span class="n">file_path</span> <span class="o">=</span> <span class="n">data_path</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+            <span class="n">granule</span> <span class="o">=</span> <span class="n">file_path</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;GRANULE&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">granule</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
+                <span class="c1"># should be only one sub-dir in the GRANULE dir</span>
+                <span class="k">if</span> <span class="n">child</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+                    <span class="n">tilepath</span> <span class="o">=</span> <span class="n">child</span>
+                    <span class="k">break</span>
+            <span class="n">img_data</span> <span class="o">=</span> <span class="n">tilepath</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;IMG_DATA&#39;</span><span class="p">)</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="s1">&#39;R</span><span class="si">{0}</span><span class="s1">m&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">s2_res</span><span class="p">))</span>
+            <span class="n">raster_dir</span> <span class="o">=</span> <span class="n">img_data</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">raster_dir</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">band</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">child</span><span class="p">):</span>
+                    <span class="n">proc_file</span> <span class="o">=</span> <span class="n">child</span>
+                    <span class="k">break</span>
+
+        <span class="k">if</span> <span class="n">platform</span> <span class="o">==</span> <span class="s1">&#39;Sentinel-1&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.SAFE&#39;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Product </span><span class="si">{0}</span><span class="s2"> is an unprocessed Sentinel-1 &quot;</span>
+                                   <span class="s2">&quot;file and cannot be stacked.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                    <span class="n">filename</span><span class="p">))</span>
+            <span class="n">info</span><span class="p">[</span><span class="s1">&#39;mode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;sensoroperationalmode&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">band</span> <span class="ow">is</span> <span class="s1">&#39;vv&#39;</span><span class="p">:</span>
+                <span class="n">layer_number</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="n">band</span> <span class="ow">is</span> <span class="s1">&#39;vh&#39;</span><span class="p">:</span>
+                <span class="n">layer_number</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="n">proc_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">gs_config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+        <span class="c1"># get the shape the reside within this product</span>
+        <span class="n">associated_ROIs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_list</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">reproject_ROI</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">epsg</span><span class="p">):</span>
+            <span class="c1"># Reproject the roi coords to the same crs as the raster</span>
+            <span class="n">roi</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">wgs84</span> <span class="o">=</span> <span class="n">osr</span><span class="o">.</span><span class="n">SpatialReference</span><span class="p">()</span>
+            <span class="n">wgs84</span><span class="o">.</span><span class="n">ImportFromEPSG</span><span class="p">(</span><span class="mi">4326</span><span class="p">)</span>
+            <span class="n">raster_crs</span> <span class="o">=</span> <span class="n">osr</span><span class="o">.</span><span class="n">SpatialReference</span><span class="p">()</span>
+            <span class="n">raster_crs</span><span class="o">.</span><span class="n">ImportFromEPSG</span><span class="p">(</span><span class="n">epsg</span><span class="p">)</span>
+            <span class="n">shape_</span> <span class="o">=</span> <span class="n">ogr</span><span class="o">.</span><span class="n">CreateGeometryFromWkt</span><span class="p">(</span><span class="n">roi</span><span class="o">.</span><span class="n">wkt</span><span class="p">)</span>
+            <span class="n">transform</span> <span class="o">=</span> <span class="n">osr</span><span class="o">.</span><span class="n">CoordinateTransformation</span><span class="p">(</span><span class="n">wgs84</span><span class="p">,</span> <span class="n">raster_crs</span><span class="p">)</span>
+            <span class="n">shape_</span><span class="o">.</span><span class="n">Transform</span><span class="p">(</span><span class="n">transform</span><span class="p">)</span>
+            <span class="c1"># back to shapely</span>
+            <span class="n">roi</span> <span class="o">=</span> <span class="n">shapely</span><span class="o">.</span><span class="n">wkt</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">shape_</span><span class="o">.</span><span class="n">ExportToWkt</span><span class="p">())</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">roi</span><span class="p">]</span>
+
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">proc_file</span><span class="p">),</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">raster</span><span class="p">:</span>
+            <span class="n">raster_epsg</span> <span class="o">=</span> <span class="n">raster</span><span class="o">.</span><span class="n">crs</span><span class="o">.</span><span class="n">to_epsg</span><span class="p">()</span>
+
+            <span class="c1"># for all of the corresponding ROIs related to this product</span>
+            <span class="k">for</span> <span class="n">ROI</span> <span class="ow">in</span> <span class="n">associated_ROIs</span><span class="p">:</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ROIs</span><span class="p">[</span><span class="n">ROI</span><span class="p">]]</span>  <span class="c1"># rasterio requires mask in iterable</span>
+
+                <span class="c1"># reproject the mask to the raster epsg if it is not WGS84</span>
+                <span class="k">if</span> <span class="n">raster_epsg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">4326</span><span class="p">:</span>
+                    <span class="n">mask</span> <span class="o">=</span> <span class="n">reproject_ROI</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">raster_epsg</span><span class="p">)</span>
+
+                <span class="c1"># if we need to check the weather cover for Sentinel-2 products</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">weather_check</span> <span class="ow">and</span> <span class="s1">&#39;2&#39;</span> <span class="ow">in</span> <span class="n">platform</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_weather_concealment</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">tilepath</span><span class="p">,</span> <span class="n">ROI</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span>
+                                              <span class="n">datetime</span><span class="p">)</span>
+
+                <span class="n">out_image</span><span class="p">,</span> <span class="n">out_transform</span> <span class="o">=</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">mask</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">raster</span><span class="p">,</span>
+                                                              <span class="n">mask</span><span class="p">,</span>
+                                                              <span class="n">crop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">out_image</span><span class="p">)</span> <span class="ow">is</span> <span class="mi">0</span> <span class="ow">or</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">out_image</span><span class="p">)</span> <span class="o">&lt;</span>
+                                                        <span class="mf">0.0001</span><span class="p">):</span>
+                    <span class="c1"># The mask has fallen victim the the traversty that is ESA</span>
+                    <span class="c1"># polygons being actually sligthly larger than the product</span>
+                    <span class="c1"># data they represent. Ie. the ROI is in the dead zone!</span>
+                    <span class="k">continue</span>
+
+                <span class="k">if</span> <span class="s1">&#39;1&#39;</span> <span class="ow">in</span> <span class="n">platform</span><span class="p">:</span>
+                    <span class="c1"># out_image is 3D when ie. [2, X, Y] and we only need 2D</span>
+                    <span class="c1"># either vv or vh</span>
+                    <span class="k">if</span> <span class="n">out_image</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="n">layers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">out_image</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+                        <span class="n">layer</span> <span class="o">=</span> <span class="n">Stack</span><span class="p">(</span><span class="n">layers</span><span class="p">[</span><span class="n">layer_number</span><span class="p">],</span> <span class="n">info</span><span class="p">,</span>
+                                      <span class="n">out_transform</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">layer</span> <span class="o">=</span> <span class="n">Stack</span><span class="p">(</span><span class="n">out_image</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span>
+                                      <span class="n">out_transform</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="s1">&#39;2&#39;</span> <span class="ow">in</span> <span class="n">platform</span><span class="p">:</span>
+                    <span class="n">layer</span> <span class="o">=</span> <span class="n">Stack</span><span class="p">(</span><span class="n">out_image</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">out_transform</span><span class="p">)</span>
+
+                <span class="n">date</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_layerbank</span><span class="p">[</span><span class="n">ROI</span><span class="p">][</span><span class="n">band</span><span class="p">][</span><span class="n">date</span><span class="p">]</span> <span class="o">=</span> <span class="n">layer</span>
+
+    <span class="k">def</span> <span class="nf">_allocate_ROIs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks product boundaries against ROI areas and allocates ROIs to</span>
+<span class="sd">        products for stamping.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">job_list</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># stores product UUIDs and accompanying ROIs</span>
+
+        <span class="k">for</span> <span class="n">uuid</span><span class="p">,</span> <span class="n">boundary</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_boundaries</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">uuid_jobs</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">ROI_name</span><span class="p">,</span> <span class="n">shape</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ROIs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">boundary</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">shape</span><span class="p">):</span>
+                    <span class="n">uuid_jobs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ROI_name</span><span class="p">)</span>
+            <span class="n">job_list</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span> <span class="o">=</span> <span class="n">uuid_jobs</span>
+
+        <span class="k">return</span> <span class="n">job_list</span>
+
+    <span class="k">def</span> <span class="nf">_gen_product_shapes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">product_list</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Loads shapely objects from product WKT footprints.&quot;&quot;&quot;</span>
+
+        <span class="n">product_boundaries</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># stores the shapely files use for allocating</span>
+        <span class="n">filtered_products</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># ESA product footprints are in WGS84 (epsg: 4326)</span>
+        <span class="k">for</span> <span class="n">uuid</span><span class="p">,</span> <span class="n">product</span> <span class="ow">in</span> <span class="n">product_list</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">product_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span>
+                                                <span class="n">product</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">][:</span><span class="mi">10</span><span class="p">],</span>
+                                                <span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_date</span> <span class="o">&lt;=</span> <span class="n">product_start</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_date</span><span class="p">:</span>
+                <span class="n">product_shape</span> <span class="o">=</span> <span class="n">shapely</span><span class="o">.</span><span class="n">wkt</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;footprint&#39;</span><span class="p">])</span>
+                <span class="n">product_boundaries</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span> <span class="o">=</span> <span class="n">product_shape</span>
+                <span class="n">filtered_products</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span> <span class="o">=</span> <span class="n">product</span>
+
+        <span class="k">return</span> <span class="n">filtered_products</span><span class="p">,</span> <span class="n">product_boundaries</span>
+
+    <span class="k">def</span> <span class="nf">_gen_ROI_shapes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">geo_files</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Loads shapely objects from given geo files.&quot;&quot;&quot;</span>
+
+        <span class="c1"># set WGS84 spatial ref</span>
+        <span class="n">wgs84</span> <span class="o">=</span> <span class="n">osr</span><span class="o">.</span><span class="n">SpatialReference</span><span class="p">()</span>
+        <span class="n">wgs84</span><span class="o">.</span><span class="n">ImportFromEPSG</span><span class="p">(</span><span class="mi">4326</span><span class="p">)</span>
+
+        <span class="n">ROIs</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># stores the referenced shapely objects use for masking</span>
+
+        <span class="k">for</span> <span class="n">geo_file</span> <span class="ow">in</span> <span class="n">geo_files</span><span class="p">:</span>
+            <span class="n">geo_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">geo_file</span><span class="p">)</span>
+            <span class="n">suffix</span> <span class="o">=</span> <span class="n">geo_file</span><span class="o">.</span><span class="n">suffix</span>
+            <span class="k">if</span> <span class="n">suffix</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;.shp&#39;</span><span class="p">,</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;File </span><span class="si">{0}</span><span class="s2"> not supported by gs_stacker.Stacker.&quot;</span>
+                                <span class="s2">&quot; Only .shp and .geojson files are currently&quot;</span>
+                                <span class="s2">&quot; supported for defining masks / ROIs&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                    <span class="n">geo_file</span><span class="p">))</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">geo_file</span><span class="o">.</span><span class="n">stem</span>
+            <span class="n">x_coords</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">y_coords</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">shp</span> <span class="o">=</span> <span class="n">ogr</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">geo_file</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">shp</span><span class="o">.</span><span class="n">GetLayerCount</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;geo-referenced files (.shp, .geojson etc)&quot;</span>
+                              <span class="s2">&quot; with more than one layer / feature will have&quot;</span>
+                              <span class="s2">&quot; the coordinates of all layers / features used&quot;</span>
+                              <span class="s2">&quot; to generate a mask for the Sentinel file.&quot;</span><span class="p">)</span>
+            <span class="n">layer</span> <span class="o">=</span> <span class="n">shp</span><span class="o">.</span><span class="n">GetLayer</span><span class="p">()</span>
+            <span class="n">shp_crs</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">GetSpatialRef</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">shp_crs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># means the file has not been georeferenced</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not retrieve the co-ordinate&quot;</span>
+                                   <span class="s2">&quot; reference system data from the meta&quot;</span>
+                                   <span class="s2">&quot; data of the geo-file </span><span class="si">{0}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                                   <span class="s2">&quot; The file may not be correctly&quot;</span>
+                                   <span class="s2">&quot; georeferenced.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">geo_file</span><span class="p">))</span>
+            <span class="n">transform</span> <span class="o">=</span> <span class="n">osr</span><span class="o">.</span><span class="n">CoordinateTransformation</span><span class="p">(</span><span class="n">shp_crs</span><span class="p">,</span> <span class="n">wgs84</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">suffix</span> <span class="o">==</span> <span class="s1">&#39;.shp&#39;</span><span class="p">:</span>
+                <span class="n">shp</span> <span class="o">=</span> <span class="n">shapefile</span><span class="o">.</span><span class="n">Reader</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">geo_file</span><span class="p">))</span>
+                <span class="c1"># extract all points from all shapes</span>
+                <span class="k">for</span> <span class="n">shape</span> <span class="ow">in</span> <span class="n">shp</span><span class="o">.</span><span class="n">shapes</span><span class="p">():</span>
+                    <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">shape</span><span class="o">.</span><span class="n">points</span><span class="p">:</span>  <span class="c1"># in the file</span>
+                        <span class="n">x_coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                        <span class="n">y_coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">x_coords</span><span class="p">,</span> <span class="n">y_coords</span><span class="p">))</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="n">shapely</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">MultiPoint</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span>  <span class="c1"># import into shapely</span>
+                <span class="n">extents</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">convex_hull</span>  <span class="c1"># gets polygon that encomps all points</span>
+                <span class="n">shape_</span> <span class="o">=</span> <span class="n">ogr</span><span class="o">.</span><span class="n">CreateGeometryFromWkt</span><span class="p">(</span><span class="n">extents</span><span class="o">.</span><span class="n">wkt</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">suffix</span> <span class="o">==</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">:</span>
+                <span class="n">geometries</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">shp</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">layer</span><span class="o">.</span><span class="n">GetFeatureCount</span><span class="p">()):</span>
+                        <span class="n">feature</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">GetFeature</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                        <span class="n">geometries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">feature</span><span class="o">.</span><span class="n">geometry</span><span class="p">())</span>
+                <span class="n">shape_</span> <span class="o">=</span> <span class="n">geometries</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">geometries</span><span class="p">)):</span>
+                    <span class="n">shape_</span> <span class="o">=</span> <span class="n">shape_</span><span class="o">.</span><span class="n">AddGeometry</span><span class="p">(</span><span class="n">geometries</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+            <span class="c1"># now reproject in ogr</span>
+            <span class="n">shape_</span><span class="o">.</span><span class="n">Transform</span><span class="p">(</span><span class="n">transform</span><span class="p">)</span>
+            <span class="c1"># back to shapely for boundary comparison during run()</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">shapely</span><span class="o">.</span><span class="n">wkt</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">shape_</span><span class="o">.</span><span class="n">ExportToWkt</span><span class="p">())</span>
+
+            <span class="n">ROIs</span><span class="p">[</span><span class="n">filename</span><span class="p">]</span> <span class="o">=</span> <span class="n">shape</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ROIs</span> <span class="o">=</span> <span class="n">ROIs</span></div>
+
+
+<div class="viewcode-block" id="Stack"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_stacker.Stack">[docs]</a><span class="k">class</span> <span class="nc">Stack</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Used to add an attribute to an existing numpy array.</span>
+<span class="sd">    adapted from:</span>
+<span class="sd">    https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html</span>
+
+<span class="sd">    Also masks all the zero values out of the array.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_array : numpy.ndarray</span>
+<span class="sd">        An existing array that is to be converted to a `Stack`.</span>
+<span class="sd">    info : list, str</span>
+<span class="sd">        `list` of `str` or just `str` that contains info on each layer such as</span>
+<span class="sd">        UUID of origin, platform, date of capture, band, and processing level.</span>
+<span class="sd">    tranform : affline.Affline</span>
+<span class="sd">        the out_transform output from the `mask` function of the `rasterio`</span>
+<span class="sd">        library.</span>
+<span class="sd">    name : str, optional</span>
+<span class="sd">        The name of the Stack. Used in the final array stacks to name the</span>
+<span class="sd">        stacks with the `str` of their corresponding shapefile names.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    info : list, str</span>
+<span class="sd">        Copy of parameter `info`.</span>
+<span class="sd">    tranform : affline.Affline</span>
+<span class="sd">        Copy of parameter `transform`.</span>
+<span class="sd">    name : str, optional</span>
+<span class="sd">        Copy of paramter `name`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">input_array</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">transform</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">input_array</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked_where</span><span class="p">(</span><span class="n">obj</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">info</span> <span class="o">=</span> <span class="n">info</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">transform</span> <span class="o">=</span> <span class="n">transform</span>
+        <span class="k">if</span> <span class="n">name</span><span class="p">:</span>
+            <span class="n">obj</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__array_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">info</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;info&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">getsentinel</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, G. Worrall.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.11</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

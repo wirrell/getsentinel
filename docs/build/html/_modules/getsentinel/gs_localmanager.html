@@ -1,0 +1,367 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>getsentinel.gs_localmanager &#8212; getsentinel Dissertation Release documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for getsentinel.gs_localmanager</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Downloaded product inventory manager.</span>
+
+<span class="sd">This module provides an up-to-date product inventory and checks the integrity</span>
+<span class="sd">of any saved inventory against the actual contents of the DATA_PATH provided by</span>
+<span class="sd">the gs_config.</span>
+
+<span class="sd">Products are stored as dictionaries containing all the necessary product info.</span>
+<span class="sd">See below for example product info format.</span>
+
+<span class="sd">Example</span>
+<span class="sd">-------</span>
+
+<span class="sd">current_inventory = gs_localmanager.get_product_inventory()</span>
+
+<span class="sd">new_downloaded_products = {uuid: product, uuid: product, ...}</span>
+
+<span class="sd">gs_localmanager.add_new_products(new_downloaded_products)</span>
+
+<span class="sd">Example Product Info Format</span>
+<span class="sd">---------------------------</span>
+<span class="sd">Below is an example format, as stored in the product_inventory.json, of an</span>
+<span class="sd">unprocessed Sentinel-1 product. The keys `tileid` and `userprocessed` are</span>
+<span class="sd">added by the gs_downloader module. The former denotes the Senntinel-2 MGRS</span>
+<span class="sd">tiles that the product traverses, the latter indicates whether the file has</span>
+<span class="sd">been processed. For processed products a further field, `origin`, is added</span>
+<span class="sd">which contains the UUID of the unprocessed product from which the processed</span>
+<span class="sd">product originates.</span>
+
+<span class="sd">    {&#39;acquisitiontype&#39;: &#39;NOMINAL&#39;,</span>
+<span class="sd">     &#39;beginposition&#39;: &#39;2015-08-24T06:22:07.95Z&#39;,</span>
+<span class="sd">     &#39;downloadlink&#39;: &quot;https://scihub.copernicus.eu/dhus/odata/v1/Products ... &quot;</span>
+<span class="sd">     &#39;endposition&#39;: &#39;2015-08-24T06:22:32.949Z&#39;,</span>
+<span class="sd">     &#39;filename&#39;: &#39;S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 ... &#39;</span>
+<span class="sd">     &#39;footprint&#39;: &#39;POLYGON ((-0.059059 53.057114,-3.867077 53.461575)) &#39;</span>
+<span class="sd">     &#39;format&#39;: &#39;SAFE&#39;,</span>
+<span class="sd">     &#39;gmlfootprint&#39;: &#39;&lt;gml:Polygon footprint ...&#39;</span>
+<span class="sd">     &#39;identifier&#39;: &#39;S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 ... &#39;</span>
+<span class="sd">     &#39;ingestiondate&#39;: &#39;2015-08-24T15:55:01.836Z&#39;,</span>
+<span class="sd">     &#39;instrumentname&#39;: &#39;Synthetic Aperture Radar (C-band)&#39;,</span>
+<span class="sd">     &#39;instrumentshortname&#39;: &#39;SAR-C SAR&#39;,</span>
+<span class="sd">     &#39;lastorbitnumber&#39;: &#39;7401&#39;,</span>
+<span class="sd">     &#39;lastrelativeorbitnumber&#39;: &#39;154&#39;,</span>
+<span class="sd">     &#39;missiondatatakeid&#39;: &#39;41709&#39;,</span>
+<span class="sd">     &#39;orbitdirection&#39;: &#39;DESCENDING&#39;,</span>
+<span class="sd">     &#39;orbitnumber&#39;: &#39;7401&#39;,</span>
+<span class="sd">     &#39;origin&#39;: &#39;d42cc6fe-5f81-4753-bf61-dc081af8fa68&#39;,</span>
+<span class="sd">     &#39;platformidentifier&#39;: &#39;0000-000A&#39;,</span>
+<span class="sd">     &#39;platformname&#39;: &#39;Sentinel-1&#39;,</span>
+<span class="sd">     &#39;polarisationmode&#39;: &#39;VV VH&#39;,</span>
+<span class="sd">     &#39;productclass&#39;: &#39;S&#39;,</span>
+<span class="sd">     &#39;producttype&#39;: &#39;GRD&#39;,</span>
+<span class="sd">     &#39;quicklookdownload&#39;: &quot;https://scihub.copernicus.eu/dhus/ ... &quot;</span>
+<span class="sd">     &#39;relativeorbitnumber&#39;: &#39;154&#39;,</span>
+<span class="sd">     &#39;sensoroperationalmode&#39;: &#39;IW&#39;,</span>
+<span class="sd">     &#39;size&#39;: &#39;1 GB&#39;,</span>
+<span class="sd">     &#39;slicenumber&#39;: &#39;6&#39;,</span>
+<span class="sd">     &#39;status&#39;: &#39;ARCHIVED&#39;,</span>
+<span class="sd">     &#39;swathidentifier&#39;: &#39;IW&#39;,</span>
+<span class="sd">     &#39;tileid&#39;: [[&#39;30UVE&#39;, ...]]</span>
+<span class="sd">     &#39;userprocessed&#39;: False}</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
+<span class="kn">from</span> <span class="nn">.gs_config</span> <span class="k">import</span> <span class="n">DATA_PATH</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">gs_downloader</span>
+
+
+<span class="k">def</span> <span class="nf">_get_new_uuid</span><span class="p">(</span><span class="n">uuid</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Generates a new uuid.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="s1">&#39;user&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">uuid</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">uuid</span> <span class="o">+</span> <span class="s1">&#39;-user&#39;</span>
+    <span class="k">if</span> <span class="n">uuid</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>  <span class="c1"># if already numbered version</span>
+        <span class="n">num</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">uuid</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">uuid</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">num</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">uuid</span> <span class="o">+</span> <span class="s1">&#39;1&#39;</span>
+
+
+<div class="viewcode-block" id="check_integrity"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_localmanager.check_integrity">[docs]</a><span class="k">def</span> <span class="nf">check_integrity</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Checks the integrity of the current inventory.</span>
+
+<span class="sd">    Adds any products that were manually added to the DATA_PATH by the user</span>
+<span class="sd">    since the last check. Removes any missing products.</span>
+
+<span class="sd">    Note</span>
+<span class="sd">    ----</span>
+<span class="sd">    Any manually added products that have already been processed must be</span>
+<span class="sd">    explicitly added via `add_new_products`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        True if successful, will throw an error otherwise.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    RuntimeError</span>
+<span class="sd">        If no unique match for a user added product can be found.</span>
+<span class="sd">    RuntimeError</span>
+<span class="sd">        If the user added product filename does not start with &#39;S1&#39; or &#39;S2&#39;</span>
+<span class="sd">    UserWarning</span>
+<span class="sd">        If a processed product is manually added to the `DATA_PATH` without</span>
+<span class="sd">        having been added to the inventory by called `add_new_products`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span>
+    <span class="n">data_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">product_inventory</span> <span class="o">=</span> <span class="n">_get_inventory</span><span class="p">()</span>
+
+    <span class="c1"># get all .SAFE file names from directory</span>
+    <span class="n">product_list_add</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data_path</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*.SAFE&#39;</span><span class="p">))]</span>
+    <span class="c1"># also get all processed files from directory</span>
+    <span class="c1"># NOTE: need to add the random apple files Joe mentioned to be ignored</span>
+    <span class="c1"># here.</span>
+    <span class="n">other_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data_path</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*&#39;</span><span class="p">))</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="ow">and</span>
+                   <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s1">&#39;.json&#39;</span><span class="p">]</span>
+
+    <span class="n">product_inventory_gone</span> <span class="o">=</span> <span class="n">product_inventory</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">uuid</span><span class="p">,</span> <span class="n">product</span> <span class="ow">in</span> <span class="n">product_inventory</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;filename&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="n">product_list_add</span><span class="p">:</span>
+            <span class="n">product_inventory_gone</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">product_list_add</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;filename&#39;</span><span class="p">])</span>
+        <span class="c1"># remove any processed files from the list that are already</span>
+        <span class="c1"># inventorised.</span>
+        <span class="k">if</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;filename&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="n">other_files</span><span class="p">:</span>
+            <span class="n">product_inventory_gone</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">other_files</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;filename&#39;</span><span class="p">])</span>
+
+    <span class="c1"># any left over files in other_files will be un-inventorised processed</span>
+    <span class="c1"># files and a user warning should be raised.</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">other_files</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Any manually added processed files must be explicitly&quot;</span>
+                      <span class="s2">&quot; added to the product inventory using the&quot;</span>
+                      <span class="s2">&quot; gs_localmanager.add_new_products function.&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="n">product_inventory_gone</span><span class="p">:</span>  <span class="c1"># now holds inventory entries for</span>
+        <span class="n">product_inventory</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># product that no longer exist</span>
+
+    <span class="n">new_products</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">product_list_add</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Adding user added file </span><span class="si">{0}</span><span class="s2"> to product&quot;</span>
+              <span class="s2">&quot; inventory.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">filename</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;S1&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">filename</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;S2&#39;</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Custom product file renaming is not&quot;</span>
+                               <span class="s2">&quot; supported. Product names must start with&quot;</span>
+                               <span class="s2">&quot; &#39;S1&#39; or &#39;S2&#39; and follow standard naming&quot;</span>
+                               <span class="s2">&quot; conventions. </span><span class="se">\n</span><span class="s2"> See&quot;</span>
+                               <span class="s2">&quot; https://scihub.copernicus.eu/userguide/&quot;</span><span class="p">)</span>
+        <span class="n">hub</span> <span class="o">=</span> <span class="n">gs_downloader</span><span class="o">.</span><span class="n">CopernicusHubConnection</span><span class="p">()</span>
+        <span class="n">product_name</span> <span class="o">=</span> <span class="n">filename</span><span class="p">[:</span><span class="o">-</span><span class="mi">5</span><span class="p">]</span>
+
+        <span class="c1"># skip all user produced files.</span>
+        <span class="k">if</span> <span class="s1">&#39;USER_PRD&#39;</span> <span class="ow">in</span> <span class="n">product_name</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Any manually added processed files must be&quot;</span>
+                          <span class="s2">&quot; explicitly added to the product inventory using&quot;</span>
+                          <span class="s2">&quot; the gs_localmanager.add_new_products function.&quot;</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="n">search_term</span> <span class="o">=</span> <span class="s1">&#39;filename:*&#39;</span> <span class="o">+</span> <span class="n">product_name</span> <span class="o">+</span> <span class="s1">&#39;*&#39;</span>
+        <span class="n">total</span><span class="p">,</span> <span class="n">product</span> <span class="o">=</span> <span class="n">hub</span><span class="o">.</span><span class="n">raw_query</span><span class="p">(</span><span class="n">search_term</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="ow">is</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># matching ESA database product found</span>
+            <span class="k">for</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="n">product</span><span class="p">:</span>
+                <span class="n">product_info</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">total</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># couldn&#39;t find a unique product.</span>
+            <span class="c1"># this should almost never be != 1 unless someone has explicitly</span>
+            <span class="c1"># changed the file name of their manually added product</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find a unique matching product&quot;</span>
+                               <span class="s2">&quot; in the ESA database for filename: </span><span class="se">\n</span><span class="s2">&quot;</span>
+                               <span class="s2">&quot; </span><span class="si">{0}</span><span class="s2"> in the </span><span class="si">{1}</span><span class="s2"> directory.&quot;</span>
+                               <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">DATA_PATH</span><span class="p">))</span>
+
+        <span class="n">new_products</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span> <span class="o">=</span> <span class="n">product_info</span>
+
+    <span class="k">for</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="n">new_products</span><span class="p">:</span>
+        <span class="n">product_inventory</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_products</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span>
+
+    <span class="n">_save_product_inventory</span><span class="p">(</span><span class="n">product_inventory</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_inventory</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;&quot;Retrieves the product inventory from .json file.&quot;&quot;&quot;</span>
+
+    <span class="n">product_inventory_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;product_inventory.json&#39;</span><span class="p">)</span>
+    <span class="n">product_inventory_path</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">product_inventory_path</span><span class="o">.</span><span class="n">open</span><span class="p">()</span> <span class="k">as</span> <span class="n">read_in</span><span class="p">:</span>
+            <span class="n">product_inventory</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">read_in</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>  <span class="c1"># if the inventory is empty</span>
+        <span class="n">product_inventory</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">return</span> <span class="n">product_inventory</span>
+
+
+<div class="viewcode-block" id="get_product_inventory"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_localmanager.get_product_inventory">[docs]</a><span class="k">def</span> <span class="nf">get_product_inventory</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Returns the product inventory as a dictionary keyed by product UUIDs.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    product_inventory : dict</span>
+<span class="sd">        Dictionary of products that are in the DATA_PATH directory, keyed by</span>
+<span class="sd">        their UUIDs.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">check_integrity</span><span class="p">()</span>
+
+    <span class="n">product_inventory</span> <span class="o">=</span> <span class="n">_get_inventory</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">product_inventory</span></div>
+
+
+<span class="k">def</span> <span class="nf">_save_product_inventory</span><span class="p">(</span><span class="n">product_inventory</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Writes the updated product inventory to the associated .json file.&quot;&quot;&quot;</span>
+
+    <span class="n">product_inventory_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;product_inventory.json&#39;</span><span class="p">)</span>
+    <span class="n">product_inventory_path</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">product_inventory_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">write_out</span><span class="p">:</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">product_inventory</span><span class="p">,</span> <span class="n">write_out</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="add_new_products"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_localmanager.add_new_products">[docs]</a><span class="k">def</span> <span class="nf">add_new_products</span><span class="p">(</span><span class="n">new_products</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Adds new products to the inventory.</span>
+
+<span class="sd">    Note</span>
+<span class="sd">    ----</span>
+<span class="sd">    This function should be used to add processed products that have been</span>
+<span class="sd">    manually added by the user.</span>
+<span class="sd">    This function does not need to be called when you are downloading products</span>
+<span class="sd">    via gs_downloader as they are added to the inventory automatically.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    added_uuids : list</span>
+<span class="sd">        List of strings containing the UUIDs of the products that have been</span>
+<span class="sd">        successfully added to the inventory.</span>
+<span class="sd">        </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">product_inventory</span> <span class="o">=</span> <span class="n">_get_inventory</span><span class="p">()</span>
+    <span class="n">added_uuids</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="n">new_products</span><span class="p">:</span>
+        <span class="n">new_uuid</span> <span class="o">=</span> <span class="n">uuid</span>
+        <span class="k">if</span> <span class="n">new_uuid</span> <span class="ow">in</span> <span class="n">product_inventory</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">product_inventory</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span> <span class="o">==</span> <span class="n">new_products</span><span class="p">[</span><span class="n">uuid</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Product </span><span class="si">{0}</span><span class="s2"> with UUID </span><span class="si">{1}</span><span class="s2"> is already&quot;</span>
+                      <span class="s2">&quot; present in the product inventory.&quot;</span>
+                      <span class="s2">&quot; - Skipping&quot;</span>
+                      <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">new_products</span><span class="p">[</span><span class="n">uuid</span><span class="p">][</span><span class="s1">&#39;identifier&#39;</span><span class="p">],</span>
+                                <span class="n">uuid</span><span class="p">))</span>
+                <span class="k">continue</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># product is a processed file</span>
+                <span class="n">new_products</span><span class="p">[</span><span class="n">uuid</span><span class="p">][</span><span class="s1">&#39;origin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">uuid</span>
+            <span class="n">new_uuid</span> <span class="o">=</span> <span class="n">_get_new_uuid</span><span class="p">(</span><span class="n">uuid</span><span class="p">)</span>
+        <span class="n">product_inventory</span><span class="p">[</span><span class="n">new_uuid</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_products</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span>
+        <span class="n">added_uuids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_uuid</span><span class="p">)</span>
+
+    <span class="n">_save_product_inventory</span><span class="p">(</span><span class="n">product_inventory</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">added_uuids</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">getsentinel</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, G. Worrall.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.11</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

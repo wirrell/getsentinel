@@ -1,0 +1,1036 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>getsentinel.gs_downloader &#8212; getsentinel Dissertation Release documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for getsentinel.gs_downloader</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;getsentinel gs_downloader.py</span>
+
+<span class="sd">Script to locate and auto-download products from Copernicus Open Access Hub</span>
+<span class="sd">which contains ESA Sentinel Satellite products. https://scihub.copernicus.eu/</span>
+<span class="sd">Queries and downloads are based on dates, coordinates, and product type.</span>
+
+<span class="sd">Example</span>
+<span class="sd">-------</span>
+<span class="sd">Basic usage example::</span>
+
+<span class="sd">    import datetime</span>
+<span class="sd">    from getsentinel import gs_downloader</span>
+
+<span class="sd">    shape_file = &#39;path/to/shapefile.shp&#39;</span>
+<span class="sd">    start = datetime.date(2018, 1, 1)</span>
+<span class="sd">    end = datetime.date(2018, 6, 1)</span>
+
+<span class="sd">    # initialise the query object</span>
+<span class="sd">    query = gs_downloader.Query(&#39;S1&#39;, start, end, shape_file)</span>
+<span class="sd">    query.product_details(&#39;L1&#39;, &#39;GRD&#39;, &#39;IW&#39;, &#39;VV VH&#39;)</span>
+
+<span class="sd">    # initialise the hub connection</span>
+<span class="sd">    hub = gs_downloader.CopernicusHubConnection()</span>
+<span class="sd">    total_products, product_list = hub.submit_query(query)</span>
+
+<span class="sd">    # optionally filter overlapping products from a given region</span>
+<span class="sd">    # query.ROI contains a polygon generated from the input coordinates</span>
+<span class="sd">    product_list = gs_downloader.filter_overlaps(product_list, query.ROI)</span>
+
+<span class="sd">    # optinally download the corresponding product quicklooks</span>
+<span class="sd">    hub.download_quicklooks(product_list)</span>
+<span class="sd">    hub.download_products(product_list)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># TODO</span>
+<span class="c1"># ----</span>
+<span class="c1"># Revise &#39;BEST&#39; product filtering to use sets(?) / be more efficient</span>
+
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">xml.etree.ElementTree</span> <span class="k">as</span> <span class="nn">ET</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">hashlib</span>
+<span class="kn">import</span> <span class="nn">pathlib</span>
+<span class="kn">import</span> <span class="nn">zipfile</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">clint.textui</span> <span class="k">import</span> <span class="n">progress</span>
+<span class="kn">import</span> <span class="nn">shapefile</span>
+<span class="kn">import</span> <span class="nn">geojson</span>
+<span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="k">import</span> <span class="n">MultiPoint</span><span class="p">,</span> <span class="n">Polygon</span>
+<span class="kn">from</span> <span class="nn">shapely.wkt</span> <span class="k">import</span> <span class="n">loads</span>
+<span class="kn">from</span> <span class="nn">osgeo</span> <span class="k">import</span> <span class="n">ogr</span><span class="p">,</span> <span class="n">osr</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">gs_localmanager</span>
+<span class="kn">from</span> <span class="nn">.gs_config</span> <span class="k">import</span> <span class="n">DATA_PATH</span><span class="p">,</span> <span class="n">QUICKLOOKS_PATH</span><span class="p">,</span> <span class="n">ESA_USERNAME</span><span class="p">,</span> <span class="n">ESA_PASSWORD</span>
+
+
+<div class="viewcode-block" id="Query"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.Query">[docs]</a><span class="k">class</span> <span class="nc">Query</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Holds the query parameters use in an ESA hub query.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    sat : str</span>
+<span class="sd">        Current Sentinel satellites supported: &#39;S1&#39;, &#39;S2&#39;</span>
+<span class="sd">    start_date : datetime.date</span>
+<span class="sd">        The start date for the date range of the ESA query</span>
+<span class="sd">    end_date : datetime.date, optional</span>
+<span class="sd">        The end date for the date range of the ESA query</span>
+<span class="sd">    ROI : str or list, optional</span>
+<span class="sd">        Can be a `str` containing the path to a geo-referenced .geojson or</span>
+<span class="sd">        shapefile or a list of coordinates, see the `set_coordinates` and</span>
+<span class="sd">        `coords_from_file` methods for more information.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dates : tuple</span>
+<span class="sd">        Contains the acquisition start and end datetime.date objects that</span>
+<span class="sd">        define the query search time period.</span>
+<span class="sd">    coordinates : list</span>
+<span class="sd">        A list containing the coordinates of the boundary of the region of</span>
+<span class="sd">        interest (ROI).</span>
+<span class="sd">    tiles : tuple</span>
+<span class="sd">        Contains a list of the ESA defined Sentinel-2 tiles that the ROI</span>
+<span class="sd">        traverses and the tile which the ROI overlaps the most with in the</span>
+<span class="sd">        format (overlapped_tiles, majority_tile).</span>
+<span class="sd">    ROI : shapely.geometry.Polygon</span>
+<span class="sd">        A shapely object defining the border of the region of interst using in</span>
+<span class="sd">        the query.</span>
+<span class="sd">    satellite : str</span>
+<span class="sd">        Defines which Sentinel satellite the query is for, e.g. &#39;S1&#39;, &#39;S2&#39;</span>
+<span class="sd">    proclevel : str</span>
+<span class="sd">        The processing level of the products desired from the query</span>
+<span class="sd">    details : dict</span>
+<span class="sd">        Contains optional parameters for the query</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">satellite</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ROI</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">acquisition_date_range</span><span class="p">(</span><span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">ROI</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_coordinates</span><span class="p">(</span><span class="n">ROI</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">satellite</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;S1&#39;</span><span class="p">,</span> <span class="s1">&#39;S2&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot; Only Sentinel-1 (use &#39;S1&#39;) and Sentinel-2 (use&quot;</span>
+                             <span class="s2">&quot; &#39;S2&#39;) products are currently supported.&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">satellite</span> <span class="o">=</span> <span class="n">satellite</span>
+
+<div class="viewcode-block" id="Query.acquisition_date_range"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.Query.acquisition_date_range">[docs]</a>    <span class="k">def</span> <span class="nf">acquisition_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">acqstart</span><span class="p">,</span> <span class="n">acqend</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set the date range for the query.</span>
+
+<span class="sd">        This method will raise an error if a anything but datetime.date objects</span>
+<span class="sd">        are passed to it or if acqstart is a date after acqend.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        This is used to specify the Sensing Start Time search criteria.</span>
+<span class="sd">        If no end date is specific, the 24 hour period for the given</span>
+<span class="sd">        start date is used. Any specified end date is considered</span>
+<span class="sd">        inclusive.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        acqstart : datetime.date</span>
+<span class="sd">            The start date for the date range of the ESA query</span>
+<span class="sd">        acqend : datetime.date, optional</span>
+<span class="sd">            The end date for the date range of the ESA query</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ------</span>
+<span class="sd">        None</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">acqstart</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;You must pass a datetime.date object to this &quot;</span>
+                            <span class="s2">&quot;method.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">acqend</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">acqend</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;You must pass a datetime.date object to this &quot;</span>
+                            <span class="s2">&quot;method.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">acqend</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">acqend</span> <span class="o">&gt;=</span> <span class="n">acqstart</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The end acquisition date must be after the &quot;</span>
+                             <span class="s2">&quot;beginning acquisition date.&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dates</span> <span class="o">=</span> <span class="p">(</span><span class="n">acqstart</span><span class="p">,</span> <span class="n">acqend</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Query.coords_from_file"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.Query.coords_from_file">[docs]</a>    <span class="k">def</span> <span class="nf">coords_from_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filepath</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Loads in the coordinates of a region of interest from a shapefile or</span>
+<span class="sd">        geojson file.</span>
+
+<span class="sd">        Uses the osgeo module to extract the coordinate reference system from</span>
+<span class="sd">        the file and reprojects it to WGS84.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        Only geojson and shapefiles are currently supported.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filepath : str</span>
+<span class="sd">            The path to the shapefile or geojson.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">file_type</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span>
+
+        <span class="k">if</span> <span class="n">file_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;.shp&#39;</span><span class="p">,</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;Currently only .shp and .geojson files&#39;</span>
+                                      <span class="s1">&#39; are supported.&#39;</span><span class="p">)</span>
+
+        <span class="c1"># set WGS84 spatial ref</span>
+        <span class="n">wgs84</span> <span class="o">=</span> <span class="n">osr</span><span class="o">.</span><span class="n">SpatialReference</span><span class="p">()</span>
+        <span class="n">wgs84</span><span class="o">.</span><span class="n">ImportFromEPSG</span><span class="p">(</span><span class="mi">4326</span><span class="p">)</span>
+
+        <span class="n">shp</span> <span class="o">=</span> <span class="n">ogr</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+        <span class="n">layer</span> <span class="o">=</span> <span class="n">shp</span><span class="o">.</span><span class="n">GetLayer</span><span class="p">()</span>
+        <span class="n">shp_crs</span> <span class="o">=</span> <span class="n">layer</span><span class="o">.</span><span class="n">GetSpatialRef</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">shp_crs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># means the file has not been georeferenced</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not retrieve the co-ordinate&quot;</span>
+                               <span class="s2">&quot; reference system data from the meta&quot;</span>
+                               <span class="s2">&quot; data of the geo-file </span><span class="si">{0}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                               <span class="s2">&quot; The file may not be correctly&quot;</span>
+                               <span class="s2">&quot; georeferenced.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filepath</span><span class="p">))</span>
+
+        <span class="n">x_coords</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">y_coords</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="n">file_type</span> <span class="o">==</span> <span class="s1">&#39;.shp&#39;</span><span class="p">:</span>
+            <span class="n">shp</span> <span class="o">=</span> <span class="n">shapefile</span><span class="o">.</span><span class="n">Reader</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">shape</span> <span class="ow">in</span> <span class="n">shp</span><span class="o">.</span><span class="n">shapes</span><span class="p">():</span>  <span class="c1"># extract all points from all shapes</span>
+                <span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">shape</span><span class="o">.</span><span class="n">points</span><span class="p">:</span>  <span class="c1"># in the file</span>
+                    <span class="n">x_coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                    <span class="n">y_coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">point</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">file_type</span> <span class="o">==</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">gjson</span> <span class="o">=</span> <span class="n">geojson</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">gjson</span><span class="p">)</span> <span class="ow">is</span> <span class="n">geojson</span><span class="o">.</span><span class="n">feature</span><span class="o">.</span><span class="n">FeatureCollection</span><span class="p">:</span>
+                    <span class="n">features</span> <span class="o">=</span> <span class="n">gjson</span><span class="p">[</span><span class="s1">&#39;features&#39;</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">feature</span> <span class="ow">in</span> <span class="n">features</span><span class="p">:</span>
+                        <span class="n">coords</span> <span class="o">=</span> <span class="n">geojson</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">coords</span><span class="p">(</span><span class="n">feature</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">coord</span> <span class="ow">in</span> <span class="n">coords</span><span class="p">:</span>
+                            <span class="n">x_coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coord</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                            <span class="n">y_coords</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">coord</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Passed GeoJSON objects must be feature&quot;</span>
+                                       <span class="s2">&quot; collections.&quot;</span><span class="p">)</span>
+
+        <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">x_coords</span><span class="p">,</span> <span class="n">y_coords</span><span class="p">))</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">MultiPoint</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span>  <span class="c1"># import into shapely</span>
+        <span class="n">shape_extents</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">convex_hull</span>  <span class="c1"># gets polygon that encomps all points</span>
+        <span class="k">if</span> <span class="n">shp_crs</span> <span class="o">!=</span> <span class="n">wgs84</span><span class="p">:</span>  <span class="c1"># if already WGS84 - skip</span>
+            <span class="n">transform</span> <span class="o">=</span> <span class="n">osr</span><span class="o">.</span><span class="n">CoordinateTransformation</span><span class="p">(</span><span class="n">shp_crs</span><span class="p">,</span> <span class="n">wgs84</span><span class="p">)</span>
+            <span class="c1"># now reproject in ogr</span>
+            <span class="n">shape_</span> <span class="o">=</span> <span class="n">ogr</span><span class="o">.</span><span class="n">CreateGeometryFromWkt</span><span class="p">(</span><span class="n">shape_extents</span><span class="o">.</span><span class="n">wkt</span><span class="p">)</span>
+            <span class="n">shape_</span><span class="o">.</span><span class="n">Transform</span><span class="p">(</span><span class="n">transform</span><span class="p">)</span>
+            <span class="c1"># back to shapely for easy coord extraction</span>
+            <span class="n">shape_extents</span> <span class="o">=</span> <span class="n">loads</span><span class="p">(</span><span class="n">shape_</span><span class="o">.</span><span class="n">ExportToWkt</span><span class="p">())</span>
+        <span class="n">coords</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">shape_extents</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_coordinates</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Query.set_coordinates"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.Query.set_coordinates">[docs]</a>    <span class="k">def</span> <span class="nf">set_coordinates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">coordlist</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Stores the passed coordinates and generates ROI boundary polygon.</span>
+
+<span class="sd">        Stores the passed coordinates list and generates a shapely object</span>
+<span class="sd">        describing the region of interest. Also uses the gs_gridtest module to</span>
+<span class="sd">        find the corresponding ESA defined Sentinel-2 product tiles that the</span>
+<span class="sd">        ROI overlaps.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        coordlist must be in the format [(lon1, lat1), (lon2, lat2), ... ]</span>
+<span class="sd">        First and last co-ordinates given in coordlist must be the same to</span>
+<span class="sd">        complete the described area.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        coordlist : list</span>
+<span class="sd">            List containing the coordinates describing the boundary of the</span>
+<span class="sd">            region of interest.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">coordlist</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">coords_from_file</span><span class="p">(</span><span class="n">coordlist</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">coordlist</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">coordlist</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;You must follow the coordlist format &quot;</span>
+                            <span class="s2">&quot;requirements.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">coordlist</span><span class="p">)</span> <span class="ow">is</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;This script does not currently support &#39;</span>
+                                      <span class="s1">&#39;queries for single coordinates, please &#39;</span>
+                                      <span class="s1">&#39;provide a list of coordinates &#39;</span>
+                                      <span class="s1">&#39;describing your area of interest.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">coordlist</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">coordlist</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">or</span> <span class="n">coordlist</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span>
+            <span class="n">coordlist</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]):</span> <span class="c1"># noqa</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The first and last co-ordinates given &quot;</span>
+                             <span class="s2">&quot;must be the same.&quot;</span><span class="p">)</span>
+
+        <span class="c1"># define Region Of Interest as a shapely object</span>
+        <span class="n">ROI</span> <span class="o">=</span> <span class="n">Polygon</span><span class="p">(</span><span class="n">coordlist</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span> <span class="o">=</span> <span class="n">ROI</span><span class="o">.</span><span class="n">exterior</span><span class="o">.</span><span class="n">coords</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ROI</span> <span class="o">=</span> <span class="n">ROI</span></div>
+
+<div class="viewcode-block" id="Query.product_details"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.Query.product_details">[docs]</a>    <span class="k">def</span> <span class="nf">product_details</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                        <span class="n">proclevel</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">producttype</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">mode</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">polarisation</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">orbitdirection</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">resolution</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">cloudcoverlimit</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Sets product search the satellite type and details.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        Some combinations will always produce no results, eg. GRD products do</span>
+<span class="sd">        note have &#39;HH&#39; polarisations (as of 25th July 2018) and so queries</span>
+<span class="sd">        using GRD and HH with return 0 results.</span>
+<span class="sd">        If in doubt, broaden the parameters and always consult the ESA docs.</span>
+<span class="sd">        See https://sentinel.esa.int/web/sentinel/user-guides for reference.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        proclevel : str, optional</span>
+<span class="sd">            Current S1 processing levels supported: &#39;L0&#39;, &#39;L1&#39;, &#39;L2&#39;, &#39;ALL&#39;</span>
+<span class="sd">            Current S2 processing levels supported: &#39;L1C&#39;, &#39;L2A&#39;, &#39;BEST&#39;, &#39;ALL&#39;</span>
+<span class="sd">            &#39;BEST&#39; searches for the highest level processed product from</span>
+<span class="sd">            available Sentinel-2 data for the given co-ordinates.</span>
+<span class="sd">        producttype : str, optional</span>
+<span class="sd">            Current product type supported for S1: &#39;RAW&#39;, &#39;SLC&#39;, &#39;GRD&#39;, &#39;OCN&#39;</span>
+<span class="sd">            Not supported for S2</span>
+<span class="sd">        mode : str, optional</span>
+<span class="sd">            Current S1 modes identifiers supported: &#39;SM&#39;, &#39;IW&#39;, &#39;EW&#39;, &#39;WV&#39;</span>
+<span class="sd">            Not supported for S2</span>
+<span class="sd">        polarisation : str, optional</span>
+<span class="sd">            Current S1 polarisations supported: &#39;HH&#39;, &#39;VV&#39;, &#39;HV&#39;, &#39;VH&#39;,</span>
+<span class="sd">            &#39;HH HV&#39;, &#39;VV VH&#39;</span>
+<span class="sd">            Not supported for S2</span>
+<span class="sd">        orbitdirection : str, optional</span>
+<span class="sd">            S1 parameter for orbit direction: &#39;Ascending&#39; or &#39;Descending&#39;</span>
+<span class="sd">            Not supported for S2</span>
+<span class="sd">        resolution : str, optional</span>
+<span class="sd">            Current S1 resolutions supported: F, H, M</span>
+<span class="sd">            Not supported for S2</span>
+<span class="sd">        cloudcoverlimit : int, optional</span>
+<span class="sd">            Not supported for S1</span>
+<span class="sd">            Integer threshold, products with percentage cloud cover higher than</span>
+<span class="sd">            the threshold with be excluded from the query results.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">sat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">satellite</span>
+
+        <span class="k">if</span> <span class="n">sat</span> <span class="ow">is</span> <span class="s1">&#39;S2&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">producttype</span> <span class="ow">or</span> <span class="n">mode</span> <span class="ow">or</span> <span class="n">resolution</span> <span class="ow">or</span> <span class="n">polarisation</span> <span class="ow">or</span>
+                    <span class="n">orbitdirection</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot; Product type, mode, polarisation, &quot;</span>
+                                 <span class="s2">&quot;resolution, orbitdirection are only&quot;</span>
+                                 <span class="s2">&quot; for S1 products.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">proclevel</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;L1C&#39;</span><span class="p">,</span> <span class="s1">&#39;L2A&#39;</span><span class="p">,</span> <span class="s1">&#39;BEST&#39;</span><span class="p">,</span> <span class="s1">&#39;ALL&#39;</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">cloudcoverlimit</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">int</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cloudcoverlimit</span> <span class="o">=</span> <span class="n">cloudcoverlimit</span>
+
+        <span class="k">if</span> <span class="n">sat</span> <span class="ow">is</span> <span class="s1">&#39;S1&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">proclevel</span> <span class="ow">and</span> <span class="n">proclevel</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;L0&#39;</span><span class="p">,</span> <span class="s1">&#39;L1&#39;</span><span class="p">,</span> <span class="s1">&#39;L2&#39;</span><span class="p">,</span> <span class="s1">&#39;ALL&#39;</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span>
+            <span class="k">if</span> <span class="n">producttype</span> <span class="ow">and</span> <span class="n">producttype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;RAW&#39;</span><span class="p">,</span> <span class="s1">&#39;SLC&#39;</span><span class="p">,</span> <span class="s1">&#39;GRD&#39;</span><span class="p">,</span> <span class="s1">&#39;OCN&#39;</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span>
+            <span class="k">if</span> <span class="n">mode</span> <span class="ow">and</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;SM&#39;</span><span class="p">,</span> <span class="s1">&#39;IW&#39;</span><span class="p">,</span> <span class="s1">&#39;EW&#39;</span><span class="p">,</span> <span class="s1">&#39;WV&#39;</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span>
+            <span class="k">if</span> <span class="n">polarisation</span> <span class="ow">and</span> <span class="n">polarisation</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;HH&#39;</span><span class="p">,</span> <span class="s1">&#39;VV&#39;</span><span class="p">,</span> <span class="s1">&#39;HV&#39;</span><span class="p">,</span> <span class="s1">&#39;VH&#39;</span><span class="p">,</span>
+                                                     <span class="s1">&#39;HH HV&#39;</span><span class="p">,</span> <span class="s1">&#39;VV VH&#39;</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span>
+            <span class="k">if</span> <span class="n">orbitdirection</span> <span class="ow">and</span> <span class="p">(</span><span class="n">orbitdirection</span>
+                                   <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;Ascending&#39;</span><span class="p">,</span> <span class="s1">&#39;Descending&#39;</span><span class="p">]):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span>
+            <span class="k">if</span> <span class="n">resolution</span> <span class="ow">and</span> <span class="n">resolution</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;F&#39;</span><span class="p">,</span> <span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="s1">&#39;M&#39;</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span>
+            <span class="k">if</span> <span class="n">cloudcoverlimit</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_details</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Cloud cover limit is only for S2 products.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">satellite</span> <span class="o">=</span> <span class="n">sat</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proclevel</span> <span class="o">=</span> <span class="n">proclevel</span>
+        <span class="c1"># detail keys preformatted to their respective User Guide search terms</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">details</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;producttype:&#39;</span><span class="p">:</span> <span class="n">producttype</span><span class="p">,</span>
+                        <span class="s1">&#39;sensoroperationalmode:&#39;</span><span class="p">:</span> <span class="n">mode</span><span class="p">,</span>
+                        <span class="s1">&#39;polarisationmode:&#39;</span><span class="p">:</span> <span class="n">polarisation</span><span class="p">,</span>
+                        <span class="s1">&#39;resolution:&#39;</span><span class="p">:</span> <span class="n">resolution</span><span class="p">,</span>
+                        <span class="s1">&#39;orbitdirection:&#39;</span><span class="p">:</span> <span class="n">orbitdirection</span><span class="p">}</span></div></div>
+
+
+<div class="viewcode-block" id="CopernicusHubConnection"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.CopernicusHubConnection">[docs]</a><span class="k">class</span> <span class="nc">CopernicusHubConnection</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Handles queries and product downloads to and from the ESA SciHub.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    username : str</span>
+<span class="sd">        The user&#39;s ESA account username.</span>
+<span class="sd">    password : str</span>
+<span class="sd">        The user&#39;s ESA account password.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">username</span> <span class="o">=</span> <span class="n">ESA_USERNAME</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">=</span> <span class="n">ESA_PASSWORD</span>
+
+<div class="viewcode-block" id="CopernicusHubConnection.raw_query"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.CopernicusHubConnection.raw_query">[docs]</a>    <span class="k">def</span> <span class="nf">raw_query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Queries the ESA SciHub with a pre-formatted query.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        This is mainly used by the gs_localmanager module and should not</span>
+<span class="sd">        generally be used for queries. Use the submit_query method instead.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        query : str</span>
+<span class="sd">            Pre-forammted search query string.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        total_results : int</span>
+<span class="sd">            Number of results returned from the query</span>
+<span class="sd">        product_list : dict</span>
+<span class="sd">            Contains all the products returned from the query, keyed by their</span>
+<span class="sd">            product UUID</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;https://scihub.copernicus.eu/dhus/search?q=&#39;</span> <span class="o">+</span> <span class="n">query</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">))</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>  <span class="c1"># parse to XML</span>
+
+        <span class="n">total_results</span><span class="p">,</span> <span class="n">product_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_response</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">total_results</span><span class="p">,</span> <span class="n">product_list</span></div>
+
+<div class="viewcode-block" id="CopernicusHubConnection.submit_query"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.CopernicusHubConnection.submit_query">[docs]</a>    <span class="k">def</span> <span class="nf">submit_query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameters</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Formats and submits a query to the ESA scihub via requests.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        The working of this function relies heavily on the format of the XML</span>
+<span class="sd">        returned by the ESA remaining constant.</span>
+<span class="sd">        Returns the number of results and a dict contain the results UUIDs and</span>
+<span class="sd">        information.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        parameters : :obj:`Query`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        num_results : int</span>
+<span class="sd">            Number of results returned from the query</span>
+<span class="sd">        product_list : dict</span>
+<span class="sd">            Contains all the products returned from the query, keyed by their</span>
+<span class="sd">            product UUID</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">parameters</span><span class="o">.</span><span class="n">dates</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot; Please set the date in the product search&quot;</span>
+                               <span class="s2">&quot; parameters before submitting a query.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">parameters</span><span class="o">.</span><span class="n">coordinates</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot; Please set the co-ordinates of the product&quot;</span>
+                               <span class="s2">&quot; search parameters before submitting a query.&quot;</span><span class="p">)</span>
+
+        <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="mi">100</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_query</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">rows</span><span class="o">=</span><span class="n">rows</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="n">procfilter</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># Filter S2 L1C products out if L2A over same area exists</span>
+        <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">proclevel</span> <span class="ow">is</span> <span class="s1">&#39;BEST&#39;</span><span class="p">:</span>
+            <span class="n">procfilter</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">def</span> <span class="nf">send_query</span><span class="p">(</span><span class="n">query</span><span class="p">):</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;https://scihub.copernicus.eu/dhus/search&#39;</span><span class="p">,</span>
+                             <span class="n">params</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+                             <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">))</span>
+            <span class="k">nonlocal</span> <span class="n">response</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>  <span class="c1"># parse to XML</span>
+
+        <span class="k">def</span> <span class="nf">get_index_results</span><span class="p">():</span>
+                <span class="c1"># get the current results index and results per page</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;{http://a9.com/-/spec/opensearch/&#39;</span>
+                                         <span class="s1">&#39;1.1/}startIndex&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+            <span class="n">results_per_page</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;{http://a9.com/-/spec/&#39;</span>
+                                                    <span class="s1">&#39;opensearch/1.1/}items&#39;</span>
+                                                    <span class="s1">&#39;PerPage&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">index</span> <span class="o">+</span> <span class="n">results_per_page</span>
+
+        <span class="c1"># send first query to the server, will return default results 1 to 100</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Querying the ESA SciHub using given search parameters.&quot;</span><span class="p">)</span>
+        <span class="n">send_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+        <span class="c1"># returns the products from the first query</span>
+        <span class="n">num_results</span><span class="p">,</span> <span class="n">product_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_response</span><span class="p">(</span><span class="n">response</span><span class="p">,</span>
+                                                          <span class="n">procfilter</span><span class="p">)</span>
+        <span class="c1"># gets the total amount of products that match the search query</span>
+        <span class="c1"># this number is used to define how far we need to iterate through</span>
+        <span class="c1"># the search pages (ESA enforces a limit of 100 results per page)</span>
+        <span class="n">total_results</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;{http://a9.com/-/spec/opensearch&#39;</span>
+                                             <span class="s1">&#39;/1.1/}totalResults&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+
+        <span class="c1"># while the number of results processed is less than the current page</span>
+        <span class="c1"># index + the amount of results on the page</span>
+        <span class="k">while</span> <span class="n">total_results</span> <span class="o">&gt;</span> <span class="n">get_index_results</span><span class="p">():</span>
+            <span class="c1"># get the next 100 results</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">100</span>
+            <span class="c1"># rebuild the query to ask for the next 100 results</span>
+            <span class="n">query</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">start</span>
+            <span class="c1"># send the rebuild query</span>
+            <span class="n">send_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+            <span class="n">results</span><span class="p">,</span> <span class="n">products</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_response</span><span class="p">(</span><span class="n">response</span><span class="p">,</span>
+                                                      <span class="n">procfilter</span><span class="p">)</span>
+            <span class="n">num_results</span> <span class="o">=</span> <span class="n">num_results</span> <span class="o">+</span> <span class="n">results</span>
+            <span class="n">product_list</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">product_list</span><span class="p">,</span> <span class="o">**</span><span class="n">products</span><span class="p">}</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Paging through results, at index </span><span class="si">{0}</span><span class="s2"> / </span><span class="si">{1}</span><span class="s2">&quot;</span>
+                  <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">total_results</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">procfilter</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Processing filter discarded </span><span class="si">{0}</span><span class="s2"> sub-optimally processed &quot;</span>
+                  <span class="s2">&quot;products&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">total_results</span> <span class="o">-</span> <span class="n">num_results</span><span class="p">))</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No. Products returned: </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">num_results</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">num_results</span><span class="p">,</span> <span class="n">product_list</span></div>
+
+<div class="viewcode-block" id="CopernicusHubConnection.download_quicklooks"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.CopernicusHubConnection.download_quicklooks">[docs]</a>    <span class="k">def</span> <span class="nf">download_quicklooks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">productlist</span><span class="p">,</span> <span class="n">downloadpath</span><span class="o">=</span><span class="n">QUICKLOOKS_PATH</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Downloads the quicklooks of  products to a specified directory.</span>
+
+<span class="sd">        Note</span>
+<span class="sd">        ----</span>
+<span class="sd">        If no quicklook is available for a product, HTML status code</span>
+<span class="sd">        500 is returned. In this case, the ESA placeholder &#39;No Quicklook&#39;</span>
+<span class="sd">        image is downloaded.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        product_list : dict</span>
+<span class="sd">            Contains all the products whose quicklooks will be downlaoded,</span>
+<span class="sd">            keyed by their product UUID</span>
+<span class="sd">        downloadpath : str, optional</span>
+<span class="sd">            Path to the directory where the quicklooks should be downloaded.</span>
+<span class="sd">            Default is the QUICKLOOKS_PATH default from gs_config.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">quicklooks_path</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">downloadpath</span><span class="p">)</span>
+        <span class="n">quicklooks_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">existing_quicklooks</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">quicklooks_path</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;*&#39;</span><span class="p">))]</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Downloading quicklooks to </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">QUICKLOOKS_PATH</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">uuid</span><span class="p">,</span> <span class="n">product</span> <span class="ow">in</span> <span class="n">productlist</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;identifier&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="n">existing_quicklooks</span><span class="p">:</span>
+                <span class="k">pass</span>  <span class="c1"># skip if already downloaded</span>
+            <span class="n">url</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;quicklookdownload&#39;</span><span class="p">]</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span>
+                                    <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">),</span>
+                                    <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">downloadpath</span><span class="p">,</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;identifier&#39;</span><span class="p">])</span><span class="o">+</span><span class="s1">&#39;.jp2&#39;</span>
+            <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">500</span><span class="p">:</span>  <span class="c1"># If no quicklook available</span>
+                <span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;https://scihub.copernicus.eu/dhus/images/&#39;</span>
+                       <span class="s1">&#39;bigplaceholder.png&#39;</span><span class="p">)</span>
+                <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">iter_content</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">512</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">chunk</span><span class="p">:</span>  <span class="c1"># filter out keep-alive new chunks</span>
+                        <span class="n">handle</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CopernicusHubConnection.download_products"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.CopernicusHubConnection.download_products">[docs]</a>    <span class="k">def</span> <span class="nf">download_products</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">products</span><span class="p">,</span> <span class="n">verify</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Downloads the products product_list to the downloadpath directory.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        productlist : dict</span>
+<span class="sd">            Contains all the product returned from the query, keyed by their</span>
+<span class="sd">            product UUID</span>
+<span class="sd">        verify : bool</span>
+<span class="sd">            If true, downloads are checked using MD5 checksum</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Copy the dict so that it doesnt get cleared and can still be used in</span>
+        <span class="c1"># a parent script</span>
+        <span class="n">productlist</span> <span class="o">=</span> <span class="n">products</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">downloadpath</span> <span class="o">=</span> <span class="n">DATA_PATH</span>  <span class="c1"># imported from gs_config</span>
+        <span class="n">product_inventory</span> <span class="o">=</span> <span class="n">gs_localmanager</span><span class="o">.</span><span class="n">get_product_inventory</span><span class="p">()</span>
+        <span class="n">already_downloaded</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">product_inventory</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+        <span class="n">total_products</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">productlist</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># used for product count</span>
+
+        <span class="k">for</span> <span class="n">uuid</span><span class="p">,</span> <span class="n">product</span> <span class="ow">in</span> <span class="n">productlist</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="n">already_downloaded</span><span class="p">:</span>  <span class="c1"># skip files already downloaded</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Product </span><span class="si">{0}</span><span class="s2"> with UUID </span><span class="si">{1}</span><span class="s2"> is already present in the&quot;</span>
+                      <span class="s2">&quot; download directory - skipping.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                          <span class="n">product</span><span class="p">[</span><span class="s1">&#39;filename&#39;</span><span class="p">],</span>
+                          <span class="n">uuid</span><span class="p">))</span>
+                <span class="n">productlist</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">i</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="k">continue</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Downloading product </span><span class="si">{0}</span><span class="s2"> / </span><span class="si">{1}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">total_products</span><span class="p">))</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_download_single_product</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span>
+                                                     <span class="n">downloadpath</span><span class="p">,</span>
+                                                     <span class="n">verify</span><span class="p">)</span>
+            <span class="n">zip_ref</span> <span class="o">=</span> <span class="n">zipfile</span><span class="o">.</span><span class="n">ZipFile</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+            <span class="n">extract_to</span> <span class="o">=</span> <span class="n">downloadpath</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Extracting the .zip file.&quot;</span><span class="p">)</span>
+            <span class="n">zip_ref</span><span class="o">.</span><span class="n">extractall</span><span class="p">(</span><span class="n">extract_to</span><span class="p">)</span>
+            <span class="n">zip_ref</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="c1"># remove leftover .zip file</span>
+            <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+            <span class="c1"># add products iteratively so that if process crashes at any point,</span>
+            <span class="c1"># earlier products downloaded in the chain will be present in the</span>
+            <span class="c1"># inventory.</span>
+            <span class="n">gs_localmanager</span><span class="o">.</span><span class="n">add_new_products</span><span class="p">({</span><span class="n">uuid</span><span class="p">:</span> <span class="n">product</span><span class="p">})</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span></div>
+
+    <span class="k">def</span> <span class="nf">_download_single_product</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                 <span class="n">uuid</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                                 <span class="n">downloadpath</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                                 <span class="n">verify</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Downloads a single product from its uuid and verifies the download</span>
+<span class="sd">        using MD5 checksum if verify = True.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">downloadurl</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://scihub.copernicus.eu/dhus/odata/v1/&quot;</span>
+                       <span class="s2">&quot;Products(&#39;</span><span class="si">{0}</span><span class="s2">&#39;)/$value&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">uuid</span><span class="p">)</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">downloadurl</span><span class="p">,</span>
+                                <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">),</span>
+                                <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;content-disposition&#39;</span><span class="p">)</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">downloadpath</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">downloadpath</span><span class="p">)</span>
+        <span class="n">filepath</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">downloadpath</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">500</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="s1">&#39;The product with UUID </span><span class="si">{0}</span><span class="s1"> could not be&#39;</span>
+                                    <span class="s1">&#39;found.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">uuid</span><span class="p">))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">filepath</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="n">filelength</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;content-length&#39;</span><span class="p">))</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Downloading product: </span><span class="se">\n</span><span class="s1"> </span><span class="si">{0}</span><span class="s1">  </span><span class="se">\n</span><span class="s1">with UUID:&#39;</span>
+                      <span class="s1">&#39;</span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span>
+                                   <span class="n">uuid</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">progress</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span>
+                        <span class="n">response</span><span class="o">.</span><span class="n">iter_content</span><span class="p">(</span><span class="n">chunk_size</span><span class="o">=</span><span class="mi">1024</span><span class="p">),</span>
+                        <span class="n">expected_size</span><span class="o">=</span><span class="p">(</span><span class="n">filelength</span><span class="o">/</span><span class="mi">1024</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">chunk</span><span class="p">:</span>  <span class="c1"># filter out keep-alive new chunks</span>
+                        <span class="n">handle</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+                        <span class="n">handle</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+            <span class="n">filepath</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+            <span class="n">exit</span><span class="p">()</span>
+
+        <span class="c1"># check the download was successful using MD5 Checksum</span>
+        <span class="k">if</span> <span class="n">verify</span><span class="p">:</span>
+            <span class="n">checksumurl</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;https://scihub.copernicus.eu/dhus/odata/v1/&quot;</span>
+                           <span class="s2">&quot;Products(&#39;</span><span class="si">{0}</span><span class="s2">&#39;)/Checksum/Value/$value&quot;</span>
+                           <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">uuid</span><span class="p">)</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">checksumurl</span><span class="p">,</span>
+                                    <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">))</span>
+            <span class="c1"># ESA supplied MD5 checksum for file</span>
+            <span class="n">checksum</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">content</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="n">md5hash</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">md5</span><span class="p">()</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="nb">iter</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">4096</span><span class="p">),</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span><span class="p">):</span>
+                    <span class="n">md5hash</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+            <span class="n">filesum</span> <span class="o">=</span> <span class="n">md5hash</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">checksum</span> <span class="o">!=</span> <span class="n">filesum</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ChecksumError</span><span class="p">((</span><span class="s1">&#39;The following product download failed&#39;</span>
+                                     <span class="s1">&#39; verification: </span><span class="se">\n</span><span class="s1"> </span><span class="si">{0}</span><span class="s1"> </span><span class="se">\n</span><span class="s1"> UUID : </span><span class="si">{1}</span><span class="s1">&#39;</span>
+                                     <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">uuid</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">filepath</span>
+
+    <span class="k">def</span> <span class="nf">_handle_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                         <span class="n">response</span><span class="p">:</span> <span class="n">ET</span><span class="o">.</span><span class="n">Element</span><span class="p">,</span>
+                         <span class="n">procfilter</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Handles the query response using the xml library. Formats the xml data</span>
+<span class="sd">        into usable dict format and also filters for highest processing level</span>
+<span class="sd">        of each product if procfilter = True.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">entries</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s1">&#39;{http://www.w3.org/2005/Atom}entry&#39;</span><span class="p">)</span>
+
+        <span class="c1"># convert from XML to dictionary format</span>
+        <span class="n">productlist</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
+            <span class="n">product</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">entry</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;href&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;href&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;(&#39;Quicklook&#39;)/$value&quot;</span><span class="p">):</span>
+                        <span class="n">product</span><span class="p">[</span><span class="s1">&#39;quicklookdownload&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;href&#39;</span><span class="p">)</span>
+                        <span class="k">continue</span>
+                    <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;href&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;$value&#39;</span><span class="p">):</span>  <span class="c1"># download links</span>
+                        <span class="n">product</span><span class="p">[</span><span class="s1">&#39;downloadlink&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;href&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;uuid&#39;</span><span class="p">:</span>
+                    <span class="n">uuid</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">text</span>
+                    <span class="n">product</span><span class="p">[</span><span class="s1">&#39;origin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">text</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">&#39;None&#39;</span><span class="p">:</span>  <span class="c1"># contain redudancies</span>
+                    <span class="n">product</span><span class="p">[</span><span class="n">field</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)]</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">text</span>
+            <span class="n">product</span><span class="p">[</span><span class="s1">&#39;userprocessed&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">productlist</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span> <span class="o">=</span> <span class="n">product</span>
+
+        <span class="c1"># filter out S2 L1C products if equivalent L2A exists</span>
+        <span class="k">def</span> <span class="nf">proc_fail_warning</span><span class="p">(</span><span class="n">id1</span><span class="p">,</span> <span class="n">id2</span><span class="p">):</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;Failed to resolve a processling level&quot;</span>
+                       <span class="s2">&quot; filter beween products </span><span class="si">{0}</span><span class="s2"> and </span><span class="si">{1}</span><span class="s2">. Both&quot;</span>
+                       <span class="s2">&quot; products have been retained in the&quot;</span>
+                       <span class="s2">&quot; search results.&quot;</span><span class="p">)</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">id1</span><span class="p">,</span> <span class="n">id2</span><span class="p">)</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">procfilter</span><span class="p">:</span>
+            <span class="c1"># removes any lesser processed products when a higher processed</span>
+            <span class="c1"># product is present.</span>
+            <span class="k">for</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">productlist</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                <span class="k">try</span><span class="p">:</span>  <span class="c1"># handles case where a uuid has already been removed but</span>
+                    <span class="n">product</span> <span class="o">=</span> <span class="n">productlist</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span>  <span class="c1"># key is still present</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="c1"># find matching tile and times</span>
+                <span class="n">tile</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;tileid&#39;</span><span class="p">]</span>
+                <span class="n">sensingtime</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">]</span>
+                <span class="n">otherproducts</span> <span class="o">=</span> <span class="n">productlist</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="n">otherproducts</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">uuid2</span><span class="p">,</span> <span class="n">product2</span> <span class="ow">in</span> <span class="n">otherproducts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">tile2</span> <span class="o">=</span> <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;tileid&#39;</span><span class="p">]</span>
+                    <span class="n">sensingtime2</span> <span class="o">=</span> <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">]</span>
+
+                    <span class="k">if</span> <span class="n">tile</span> <span class="o">==</span> <span class="n">tile2</span> <span class="ow">and</span> <span class="n">sensingtime</span> <span class="o">==</span> <span class="n">sensingtime2</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;processinglevel&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Level-1C&#39;</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="s1">&#39;Level-2A&#39;</span> <span class="ow">in</span> <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;processinglevel&#39;</span><span class="p">]:</span>
+                                <span class="n">productlist</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">proc_fail_warning</span><span class="p">(</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;identifier&#39;</span><span class="p">],</span>
+                                                  <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;identifier&#39;</span><span class="p">])</span>
+                        <span class="k">if</span> <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;processinglevel&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Level-1C&#39;</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="s1">&#39;Level-2A&#39;</span> <span class="ow">in</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;processinglevel&#39;</span><span class="p">]:</span>
+                                <span class="n">productlist</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid2</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">proc_fail_warning</span><span class="p">(</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;identifier&#39;</span><span class="p">],</span>
+                                                  <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;identifier&#39;</span><span class="p">])</span>
+        <span class="n">totalresults</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">productlist</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">totalresults</span><span class="p">,</span> <span class="n">productlist</span>
+
+    <span class="k">def</span> <span class="nf">_build_query</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                     <span class="n">parameters</span><span class="p">:</span> <span class="n">Query</span><span class="p">,</span>
+                     <span class="n">start</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+                     <span class="n">rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Builds the query for use with the requests module.</span>
+<span class="sd">        Query syntax from:</span>
+<span class="sd">        https://scihub.copernicus.eu/userguide/5APIsAndBatchScripting</span>
+<span class="sd">        https://scihub.copernicus.eu/twiki/do/view/SciHubUserGuide/3FullTextSearch</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">query</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;q&#39;</span><span class="p">:</span> <span class="s1">&#39;*&#39;</span><span class="p">}</span>
+        <span class="n">join</span> <span class="o">=</span> <span class="s1">&#39; AND &#39;</span>
+
+        <span class="k">def</span> <span class="nf">term_join</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+            <span class="n">query</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">query</span><span class="p">[</span><span class="s1">&#39;q&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">join</span> <span class="o">+</span> <span class="n">field</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">satellite</span><span class="p">:</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="s1">&#39;platformname:&#39;</span>
+            <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">satellite</span> <span class="ow">is</span> <span class="s1">&#39;S1&#39;</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;Sentinel-1&#39;</span>
+            <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">satellite</span> <span class="ow">is</span> <span class="s1">&#39;S2&#39;</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;Sentinel-2&#39;</span>
+            <span class="n">term_join</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># Formatting the dates query</span>
+
+        <span class="n">start_date</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">parameters</span><span class="o">.</span><span class="n">dates</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">+</span><span class="s1">&#39;T00:00:00.000Z&#39;</span>
+        <span class="c1"># set the end date to one day later</span>
+        <span class="n">end_date</span> <span class="o">=</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">parameters</span><span class="o">.</span><span class="n">dates</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+                    <span class="o">+</span> <span class="s1">&#39;T00:00:00.000Z&#39;</span><span class="p">)</span>
+        <span class="c1"># if an end date set by the user, overwrite</span>
+        <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">dates</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">end_date</span> <span class="o">=</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">parameters</span><span class="o">.</span><span class="n">dates</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+                        <span class="o">+</span> <span class="s1">&#39;T00:00:00.000Z&#39;</span><span class="p">)</span>
+
+        <span class="n">field</span> <span class="o">=</span> <span class="s1">&#39;beginposition:&#39;</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;[&#39;</span> <span class="o">+</span> <span class="n">start_date</span> <span class="o">+</span> <span class="s1">&#39; TO &#39;</span> <span class="o">+</span> <span class="n">end_date</span> <span class="o">+</span> <span class="s1">&#39;]&#39;</span>
+        <span class="n">term_join</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># Formatting the co-ordinates intersect query</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;&quot;intersects(&#39;</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">value</span> <span class="o">+</span> <span class="n">parameters</span><span class="o">.</span><span class="n">ROI</span><span class="o">.</span><span class="n">wkt</span>  <span class="c1"># add the ROI WKT format to query</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">value</span> <span class="o">+</span> <span class="s1">&#39;)&quot;&#39;</span>
+        <span class="n">field</span> <span class="o">=</span> <span class="s1">&#39;footprint:&#39;</span>
+        <span class="n">term_join</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># Adding other product details to the query</span>
+
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">parameters</span><span class="o">.</span><span class="n">details</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">details</span><span class="p">[</span><span class="n">key</span><span class="p">]:</span>
+                <span class="n">term_join</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">parameters</span><span class="o">.</span><span class="n">details</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+
+        <span class="c1"># If cloud cover limit is set for S2 products</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span> <span class="s1">&#39;cloudcoverlimit&#39;</span><span class="p">):</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="s1">&#39;cloudcoverpercentage:&#39;</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;[0 TO </span><span class="si">{0}</span><span class="s1">]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">parameters</span><span class="o">.</span><span class="n">cloudcoverlimit</span><span class="p">)</span>
+            <span class="n">term_join</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># If searching for S1 products, can directly add required proc level</span>
+        <span class="c1"># to query term in short hand (see User Guide)</span>
+
+        <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">satellite</span> <span class="ow">is</span> <span class="s1">&#39;S1&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">proclevel</span> <span class="ow">and</span> <span class="n">parameters</span><span class="o">.</span><span class="n">proclevel</span> <span class="o">!=</span> <span class="s1">&#39;ALL&#39;</span><span class="p">:</span>
+                <span class="n">term_join</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="o">.</span><span class="n">proclevel</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">satellite</span> <span class="ow">is</span> <span class="s1">&#39;S2&#39;</span><span class="p">:</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="s1">&#39;producttype:&#39;</span>
+            <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">proclevel</span> <span class="o">==</span> <span class="s1">&#39;L1C&#39;</span><span class="p">:</span>
+                <span class="n">term_join</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="s1">&#39;S2MSI1C&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">proclevel</span> <span class="o">==</span> <span class="s1">&#39;L2A&#39;</span><span class="p">:</span>
+                <span class="n">term_join</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="s1">&#39;S2MSI2A&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Add the start and end row limits for the query</span>
+        <span class="n">query</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+        <span class="n">query</span><span class="p">[</span><span class="s1">&#39;rows&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">query</span></div>
+
+
+<div class="viewcode-block" id="filter_overlaps"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.filter_overlaps">[docs]</a><span class="k">def</span> <span class="nf">filter_overlaps</span><span class="p">(</span><span class="n">product_list</span><span class="p">,</span> <span class="n">ROI</span><span class="p">,</span> <span class="n">external_list</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Filters out any overlapping products</span>
+
+<span class="sd">    If the ROI coordinates are completely encompassed by two products and</span>
+<span class="sd">    the sensing time for both products is the same, the products will have</span>
+<span class="sd">    identical data in the overlapping regions. Thus one of them can be removed</span>
+<span class="sd">    from the downloads required.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    product_list : dict</span>
+<span class="sd">        Contains all the products returned from the query, keyed by their</span>
+<span class="sd">        product UUID</span>
+<span class="sd">    ROI : :obj:`shapely.geometry.Polygon`</span>
+<span class="sd">    external_list : dict</span>
+<span class="sd">        A list of products provided that represents the products already</span>
+<span class="sd">        present in the inventory. Prevents filtering from removing one product</span>
+<span class="sd">        over another when the first is already present in the inventory.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">extract_time</span><span class="p">(</span><span class="n">time_string</span><span class="p">):</span>
+        <span class="c1"># creates a datetime object from the given time string</span>
+        <span class="n">sense_year</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_string</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">4</span><span class="p">])</span>
+        <span class="n">sense_month</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_string</span><span class="p">[</span><span class="mi">5</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+        <span class="n">sense_day</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_string</span><span class="p">[</span><span class="mi">8</span><span class="p">:</span><span class="mi">10</span><span class="p">])</span>
+        <span class="n">sense_hour</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_string</span><span class="p">[</span><span class="mi">11</span><span class="p">:</span><span class="mi">13</span><span class="p">])</span>
+        <span class="n">sense_minute</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_string</span><span class="p">[</span><span class="mi">14</span><span class="p">:</span><span class="mi">16</span><span class="p">])</span>
+        <span class="n">sense_second</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_string</span><span class="p">[</span><span class="mi">17</span><span class="p">:</span><span class="mi">19</span><span class="p">])</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="n">sense_year</span><span class="p">,</span>
+                                 <span class="n">sense_month</span><span class="p">,</span>
+                                 <span class="n">sense_day</span><span class="p">,</span>
+                                 <span class="n">sense_hour</span><span class="p">,</span>
+                                 <span class="n">sense_minute</span><span class="p">,</span>
+                                 <span class="n">sense_second</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">time</span>
+
+    <span class="n">encompassing_products</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">num_products_passed</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">product_list</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">uuid</span><span class="p">,</span> <span class="n">product</span> <span class="ow">in</span> <span class="n">product_list</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="c1"># format the footprint string for use with pyshp</span>
+        <span class="n">footprint</span> <span class="o">=</span> <span class="n">loads</span><span class="p">(</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;footprint&#39;</span><span class="p">])</span>  <span class="c1"># load in via shapely</span>
+        <span class="c1"># if ROI fully encompassed by a product</span>
+        <span class="k">if</span> <span class="n">ROI</span><span class="o">.</span><span class="n">within</span><span class="p">(</span><span class="n">footprint</span><span class="p">):</span>
+            <span class="n">encompassing_products</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">uuid</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">external_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="n">external_list</span><span class="p">:</span>
+                <span class="c1"># if encompassing product already in given list</span>
+                <span class="c1"># then remove it. This stops the edge case where one</span>
+                <span class="c1"># encompassing product gets preferred over another even though</span>
+                <span class="c1"># the second is already downloaded (ie. present in the external</span>
+                <span class="c1"># list). This would cause duplicate data in the final batch</span>
+                <span class="c1"># list.</span>
+                <span class="n">product_list</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="c1"># filter out duplicates</span>
+    <span class="n">product_list_copy</span> <span class="o">=</span> <span class="n">product_list</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="n">encompassing_products</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">product</span> <span class="o">=</span> <span class="n">product_list</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>  <span class="c1"># product already removed</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;2&#39;</span><span class="p">):</span>
+
+            <span class="n">proclevel</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;processinglevel&#39;</span><span class="p">]</span>
+            <span class="n">sensing_time</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">]</span>
+
+            <span class="k">for</span> <span class="n">uuid2</span><span class="p">,</span> <span class="n">product2</span> <span class="ow">in</span> <span class="n">product_list_copy</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">uuid</span> <span class="ow">is</span> <span class="n">uuid2</span> <span class="ow">or</span> <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]</span> <span class="o">!=</span>
+                  <span class="n">product</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]):</span> <span class="c1"># noqa</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">product2</span><span class="p">[</span><span class="s1">&#39;processinglevel&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">proclevel</span> <span class="ow">and</span>
+                  <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">sensing_time</span><span class="p">):</span> <span class="c1"># noqa</span>
+                    <span class="n">product_list</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid2</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># removes overlapping tile</span>
+                    <span class="k">break</span>
+
+        <span class="k">if</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;1&#39;</span><span class="p">):</span>
+
+            <span class="n">prodtype</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;producttype&#39;</span><span class="p">]</span>
+            <span class="n">polarisation</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;polarisationmode&#39;</span><span class="p">]</span>
+            <span class="n">sensing_begin</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">]</span>
+            <span class="n">sensing_begin</span> <span class="o">=</span> <span class="n">extract_time</span><span class="p">(</span><span class="n">sensing_begin</span><span class="p">)</span>
+            <span class="n">sensing_end</span> <span class="o">=</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;endposition&#39;</span><span class="p">]</span>
+            <span class="n">sensing_end</span> <span class="o">=</span> <span class="n">extract_time</span><span class="p">(</span><span class="n">sensing_end</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">uuid2</span><span class="p">,</span> <span class="n">product2</span> <span class="ow">in</span> <span class="n">product_list_copy</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">uuid</span> <span class="ow">is</span> <span class="n">uuid2</span> <span class="ow">or</span> <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]</span> <span class="o">!=</span>
+                  <span class="n">product</span><span class="p">[</span><span class="s1">&#39;platformname&#39;</span><span class="p">]):</span> <span class="c1"># noqa</span>
+                    <span class="k">continue</span>
+                <span class="n">sensing_begin_2</span> <span class="o">=</span> <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;beginposition&#39;</span><span class="p">]</span>
+                <span class="n">sensing_begin_2</span> <span class="o">=</span> <span class="n">extract_time</span><span class="p">(</span><span class="n">sensing_begin_2</span><span class="p">)</span>
+                <span class="c1"># If second product has sensing time before the end of first</span>
+                <span class="c1"># product, that indicates data overlap</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">sensing_begin</span> <span class="o">&lt;</span> <span class="n">sensing_begin_2</span> <span class="o">&lt;</span> <span class="n">sensing_end</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">product2</span><span class="p">[</span><span class="s1">&#39;producttype&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">prodtype</span> <span class="ow">and</span>
+                      <span class="n">product2</span><span class="p">[</span><span class="s1">&#39;polarisationmode&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">polarisation</span><span class="p">):</span> <span class="c1"># noqa</span>
+                        <span class="n">product_list</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">uuid2</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                        <span class="k">break</span>
+
+    <span class="n">products_removed</span> <span class="o">=</span> <span class="n">num_products_passed</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">product_list</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;filter_overlaps : </span><span class="si">{0}</span><span class="s2"> product(s) filtered&quot;</span>
+          <span class="s2">&quot; out.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">products_removed</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">product_list</span></div>
+
+
+<div class="viewcode-block" id="ChecksumError"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_downloader.ChecksumError">[docs]</a><span class="k">class</span> <span class="nc">ChecksumError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Checksum Exception for when checksums do not match in downloading.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">getsentinel</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, G. Worrall.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.11</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,251 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>getsentinel.gs_config &#8212; getsentinel Dissertation Release documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for getsentinel.gs_config</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot; Handles getsentinel configuration</span>
+
+<span class="sd">Provides the paths for all the internal workings of getsentinel.</span>
+
+<span class="sd">Attributes</span>
+<span class="sd">----------</span>
+<span class="sd">ESA_USERNAME : str</span>
+<span class="sd">    The ESA SciHub username for the user.</span>
+<span class="sd">ESA_PASSWORD : str</span>
+<span class="sd">    The ESA SciHub password for the user.</span>
+<span class="sd">SEN2COR_ROOT_PATH : str</span>
+<span class="sd">    Contains the aboslute filepath to the sen2cor installation.</span>
+<span class="sd">GPT_ROOT_PATH : str</span>
+<span class="sd">    The absolute filepath to the Sentinel Toolbox gpt utility.</span>
+<span class="sd">DATA_PATH : str</span>
+<span class="sd">    The relative or absolute filepath to the data storage directory.</span>
+<span class="sd">QUICKLOOKS_PATH : str</span>
+<span class="sd">    The relative or absolute filepath to the quicklooks storage directory.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pathlib</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+
+<span class="k">def</span> <span class="nf">_get_config</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Loads in the config details from the gs_config.txt file.&quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">CONFIG_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Config file does not exist. Please enter the following&quot;</span>
+              <span class="s2">&quot; details:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">set_userinfo</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">CONFIG_PATH</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">config_file</span><span class="p">:</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;esa_username&#39;</span><span class="p">,</span> <span class="s1">&#39;esa_password&#39;</span><span class="p">,</span> <span class="s1">&#39;sen2cor_path&#39;</span><span class="p">,</span> <span class="s1">&#39;snap_gpt&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;data_path&#39;</span><span class="p">,</span> <span class="s1">&#39;quicklooks_path&#39;</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Config file is corrupted. Deleting config file.&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;A config file error occured. Please re-run &quot;</span>
+                               <span class="s2">&quot; your script and re-enter your config info.&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">config</span>
+
+
+<span class="k">def</span> <span class="nf">_ask_user</span><span class="p">(</span><span class="n">info_string</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Asks the user to enter the information for a certain config</span>
+<span class="sd">    parameter.&quot;&quot;&quot;</span>
+
+    <span class="n">request_string</span> <span class="o">=</span> <span class="s2">&quot;Please enter </span><span class="si">{0}</span><span class="s2">:&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">info_string</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">default</span><span class="p">:</span>
+        <span class="n">default_str</span> <span class="o">=</span> <span class="s2">&quot; (Press ENTER to use the default option </span><span class="si">{0}</span><span class="s2">):&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">default</span><span class="p">)</span>
+        <span class="n">request_string</span> <span class="o">=</span> <span class="n">request_string</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">default_str</span>
+
+    <span class="n">info</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="n">request_string</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">info</span>
+
+
+<div class="viewcode-block" id="set_userinfo"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_config.set_userinfo">[docs]</a><span class="k">def</span> <span class="nf">set_userinfo</span><span class="p">(</span><span class="n">info_dict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Get the path and account info from the user.</span>
+
+<span class="sd">    Note</span>
+<span class="sd">    ----</span>
+<span class="sd">    This function should be called to reset change the user config info.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    info_dict : :obj:`dict` of :obj:`str`, optional</span>
+<span class="sd">        If passed, must contain a `dict` of format contained in the global</span>
+<span class="sd">        variable `USER_INFO_DICT`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    None</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># NOTE: consider adding hints on location of installation directories</span>
+
+    <span class="k">if</span> <span class="n">info_dict</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">user</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;user&#39;</span><span class="p">]</span>
+            <span class="n">passw</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;passw&#39;</span><span class="p">]</span>
+            <span class="n">sen2cor</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;sen2cor&#39;</span><span class="p">]</span>
+            <span class="n">gpt</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;gpt&#39;</span><span class="p">]</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span>
+            <span class="n">qlooks</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;qlooks&#39;</span><span class="p">]</span>
+            <span class="n">_save_config</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">passw</span><span class="p">,</span> <span class="n">sen2cor</span><span class="p">,</span> <span class="n">gpt</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">qlooks</span><span class="p">)</span>
+
+            <span class="k">return</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;The dictionary passed to&quot;</span>
+                           <span class="s2">&quot; gs_config.set_userinfo is not in the correct&quot;</span>
+                           <span class="s2">&quot; format. Use the global variable&quot;</span>
+                           <span class="s2">&quot; gs_config.USER_INFO_DICT for the example&quot;</span>
+                           <span class="s2">&quot; structure.&quot;</span><span class="p">)</span>
+
+    <span class="n">user</span> <span class="o">=</span> <span class="n">_ask_user</span><span class="p">(</span><span class="s2">&quot;your ESA SciHub username&quot;</span><span class="p">)</span>
+    <span class="n">passw</span> <span class="o">=</span> <span class="n">_ask_user</span><span class="p">(</span><span class="s2">&quot;your ESA SciHub password&quot;</span><span class="p">)</span>
+    <span class="n">sen2cor</span> <span class="o">=</span> <span class="n">_ask_user</span><span class="p">(</span><span class="s2">&quot;the absolute path to your ESA sen2cor installation &quot;</span>
+                        <span class="s2">&quot;L2A_Process tool&quot;</span><span class="p">)</span>
+    <span class="n">gpt</span> <span class="o">=</span> <span class="n">_ask_user</span><span class="p">(</span><span class="s2">&quot;the absolute path to your SNAP installation gpt tool&quot;</span><span class="p">)</span>
+    <span class="n">default</span> <span class="o">=</span> <span class="s1">&#39;data/&#39;</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">_ask_user</span><span class="p">(</span><span class="s2">&quot;the path where you want your Sentinel data to be stored&quot;</span><span class="p">,</span>
+                     <span class="n">default</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">data</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">default</span>
+    <span class="n">default</span> <span class="o">=</span> <span class="s1">&#39;quicklooks/&#39;</span>
+    <span class="n">qlooks</span> <span class="o">=</span> <span class="n">_ask_user</span><span class="p">(</span><span class="s2">&quot;the path where you want Sentinel product&quot;</span>
+                       <span class="s2">&quot; quicklooks to be stored&quot;</span><span class="p">,</span>
+                       <span class="n">default</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">qlooks</span><span class="p">:</span>
+        <span class="n">qlooks</span> <span class="o">=</span> <span class="n">default</span>
+
+    <span class="n">_save_config</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">passw</span><span class="p">,</span> <span class="n">sen2cor</span><span class="p">,</span> <span class="n">gpt</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">qlooks</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_save_config</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">passw</span><span class="p">,</span> <span class="n">sen2cor</span><span class="p">,</span> <span class="n">gpt</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">qlooks</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Saves all the details to the config file.&quot;&quot;&quot;</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;esa_username&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">user</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;esa_password&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">passw</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;sen2cor_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sen2cor</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;snap_gpt&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gpt</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;data_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+    <span class="n">config</span><span class="p">[</span><span class="s1">&#39;quicklooks_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">qlooks</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">CONFIG_PATH</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">config_file</span><span class="p">:</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">config_file</span><span class="p">)</span>
+
+
+<span class="n">INSTALL_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+<span class="n">CONFIG_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">INSTALL_PATH</span><span class="p">,</span> <span class="s1">&#39;gs_config.txt&#39;</span><span class="p">)</span>
+
+<span class="n">_config_info</span> <span class="o">=</span> <span class="n">_get_config</span><span class="p">()</span>
+
+<span class="n">USER_INFO_DICT</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="s1">&#39;ESA_username&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;passw&#39;</span><span class="p">:</span> <span class="s1">&#39;ESA_password&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;sen2cor&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/sen2cor/L2A_Process&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;gpt&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/gpt&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/store/data&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;qlooks&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/store/quicklooks&#39;</span><span class="p">}</span>
+
+<span class="n">ESA_USERNAME</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;esa_username&#39;</span><span class="p">]</span>
+<span class="n">ESA_PASSWORD</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;esa_password&#39;</span><span class="p">]</span>
+<span class="n">SEN2COR_ROOT_PATH</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;sen2cor_path&#39;</span><span class="p">]</span>
+<span class="n">GPT_ROOT_PATH</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;snap_gpt&#39;</span><span class="p">]</span>
+<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;data_path&#39;</span><span class="p">]</span>
+<span class="n">QUICKLOOKS_PATH</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;quicklooks_path&#39;</span><span class="p">]</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">getsentinel</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, G. Worrall.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.11</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

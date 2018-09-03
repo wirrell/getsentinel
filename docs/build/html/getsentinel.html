@@ -1,0 +1,1034 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>getsentinel package &#8212; getsentinel Dissertation Release documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="getsentinel-package">
+<h1>getsentinel package<a class="headerlink" href="#getsentinel-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-getsentinel.gs_config">
+<span id="getsentinel-gs-config-module"></span><h2>getsentinel.gs_config module<a class="headerlink" href="#module-getsentinel.gs_config" title="Permalink to this headline">¶</a></h2>
+<p>Handles getsentinel configuration</p>
+<p>Provides the paths for all the internal workings of getsentinel.</p>
+<dl class="attribute">
+<dt id="getsentinel.gs_config.ESA_USERNAME">
+<code class="descclassname">getsentinel.gs_config.</code><code class="descname">ESA_USERNAME</code><a class="headerlink" href="#getsentinel.gs_config.ESA_USERNAME" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The ESA SciHub username for the user.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_config.ESA_PASSWORD">
+<code class="descclassname">getsentinel.gs_config.</code><code class="descname">ESA_PASSWORD</code><a class="headerlink" href="#getsentinel.gs_config.ESA_PASSWORD" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The ESA SciHub password for the user.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_config.SEN2COR_ROOT_PATH">
+<code class="descclassname">getsentinel.gs_config.</code><code class="descname">SEN2COR_ROOT_PATH</code><a class="headerlink" href="#getsentinel.gs_config.SEN2COR_ROOT_PATH" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – Contains the aboslute filepath to the sen2cor installation.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_config.GPT_ROOT_PATH">
+<code class="descclassname">getsentinel.gs_config.</code><code class="descname">GPT_ROOT_PATH</code><a class="headerlink" href="#getsentinel.gs_config.GPT_ROOT_PATH" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The absolute filepath to the Sentinel Toolbox gpt utility.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_config.DATA_PATH">
+<code class="descclassname">getsentinel.gs_config.</code><code class="descname">DATA_PATH</code><a class="headerlink" href="#getsentinel.gs_config.DATA_PATH" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The relative or absolute filepath to the data storage directory.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_config.QUICKLOOKS_PATH">
+<code class="descclassname">getsentinel.gs_config.</code><code class="descname">QUICKLOOKS_PATH</code><a class="headerlink" href="#getsentinel.gs_config.QUICKLOOKS_PATH" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The relative or absolute filepath to the quicklooks storage directory.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="getsentinel.gs_config.set_userinfo">
+<code class="descclassname">getsentinel.gs_config.</code><code class="descname">set_userinfo</code><span class="sig-paren">(</span><em>info_dict=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_config.html#set_userinfo"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_config.set_userinfo" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the path and account info from the user.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This function should be called to reset change the user config info.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>info_dict</strong> (<code class="xref py py-obj docutils literal notranslate"><span class="pre">dict</span></code> of <code class="xref py py-obj docutils literal notranslate"><span class="pre">str</span></code>, optional) – If passed, must contain a <cite>dict</cite> of format contained in the global
+variable <cite>USER_INFO_DICT</cite></td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"></td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">None</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-getsentinel.gs_downloader">
+<span id="getsentinel-gs-downloader-module"></span><h2>getsentinel.gs_downloader module<a class="headerlink" href="#module-getsentinel.gs_downloader" title="Permalink to this headline">¶</a></h2>
+<p>getsentinel gs_downloader.py</p>
+<p>Script to locate and auto-download products from Copernicus Open Access Hub
+which contains ESA Sentinel Satellite products. <a class="reference external" href="https://scihub.copernicus.eu/">https://scihub.copernicus.eu/</a>
+Queries and downloads are based on dates, coordinates, and product type.</p>
+<p class="rubric">Example</p>
+<p>Basic usage example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">getsentinel</span> <span class="k">import</span> <span class="n">gs_downloader</span>
+
+<span class="n">shape_file</span> <span class="o">=</span> <span class="s1">&#39;path/to/shapefile.shp&#39;</span>
+<span class="n">start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># initialise the query object</span>
+<span class="n">query</span> <span class="o">=</span> <span class="n">gs_downloader</span><span class="o">.</span><span class="n">Query</span><span class="p">(</span><span class="s1">&#39;S1&#39;</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">shape_file</span><span class="p">)</span>
+<span class="n">query</span><span class="o">.</span><span class="n">product_details</span><span class="p">(</span><span class="s1">&#39;L1&#39;</span><span class="p">,</span> <span class="s1">&#39;GRD&#39;</span><span class="p">,</span> <span class="s1">&#39;IW&#39;</span><span class="p">,</span> <span class="s1">&#39;VV VH&#39;</span><span class="p">)</span>
+
+<span class="c1"># initialise the hub connection</span>
+<span class="n">hub</span> <span class="o">=</span> <span class="n">gs_downloader</span><span class="o">.</span><span class="n">CopernicusHubConnection</span><span class="p">()</span>
+<span class="n">total_products</span><span class="p">,</span> <span class="n">product_list</span> <span class="o">=</span> <span class="n">hub</span><span class="o">.</span><span class="n">submit_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+
+<span class="c1"># optionally filter overlapping products from a given region</span>
+<span class="c1"># query.ROI contains a polygon generated from the input coordinates</span>
+<span class="n">product_list</span> <span class="o">=</span> <span class="n">gs_downloader</span><span class="o">.</span><span class="n">filter_overlaps</span><span class="p">(</span><span class="n">product_list</span><span class="p">,</span> <span class="n">query</span><span class="o">.</span><span class="n">ROI</span><span class="p">)</span>
+
+<span class="c1"># optinally download the corresponding product quicklooks</span>
+<span class="n">hub</span><span class="o">.</span><span class="n">download_quicklooks</span><span class="p">(</span><span class="n">product_list</span><span class="p">)</span>
+<span class="n">hub</span><span class="o">.</span><span class="n">download_products</span><span class="p">(</span><span class="n">product_list</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="exception">
+<dt id="getsentinel.gs_downloader.ChecksumError">
+<em class="property">exception </em><code class="descclassname">getsentinel.gs_downloader.</code><code class="descname">ChecksumError</code><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#ChecksumError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.ChecksumError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Checksum Exception for when checksums do not match in downloading.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="getsentinel.gs_downloader.CopernicusHubConnection">
+<em class="property">class </em><code class="descclassname">getsentinel.gs_downloader.</code><code class="descname">CopernicusHubConnection</code><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#CopernicusHubConnection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Handles queries and product downloads to and from the ESA SciHub.</p>
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.CopernicusHubConnection.username">
+<code class="descname">username</code><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.username" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The user’s ESA account username.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.CopernicusHubConnection.password">
+<code class="descname">password</code><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.password" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The user’s ESA account password.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_downloader.CopernicusHubConnection.download_products">
+<code class="descname">download_products</code><span class="sig-paren">(</span><em>products</em>, <em>verify=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#CopernicusHubConnection.download_products"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.download_products" title="Permalink to this definition">¶</a></dt>
+<dd><p>Downloads the products product_list to the downloadpath directory.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>productlist</strong> (<em>dict</em>) – Contains all the product returned from the query, keyed by their
+product UUID</li>
+<li><strong>verify</strong> (<em>bool</em>) – If true, downloads are checked using MD5 checksum</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">None</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_downloader.CopernicusHubConnection.download_quicklooks">
+<code class="descname">download_quicklooks</code><span class="sig-paren">(</span><em>productlist</em>, <em>downloadpath='quicklooks/'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#CopernicusHubConnection.download_quicklooks"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.download_quicklooks" title="Permalink to this definition">¶</a></dt>
+<dd><p>Downloads the quicklooks of  products to a specified directory.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">If no quicklook is available for a product, HTML status code
+500 is returned. In this case, the ESA placeholder ‘No Quicklook’
+image is downloaded.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>product_list</strong> (<em>dict</em>) – Contains all the products whose quicklooks will be downlaoded,
+keyed by their product UUID</li>
+<li><strong>downloadpath</strong> (<em>str</em><em>, </em><em>optional</em>) – Path to the directory where the quicklooks should be downloaded.
+Default is the QUICKLOOKS_PATH default from gs_config.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">None</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_downloader.CopernicusHubConnection.raw_query">
+<code class="descname">raw_query</code><span class="sig-paren">(</span><em>query</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#CopernicusHubConnection.raw_query"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.raw_query" title="Permalink to this definition">¶</a></dt>
+<dd><p>Queries the ESA SciHub with a pre-formatted query.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This is mainly used by the gs_localmanager module and should not
+generally be used for queries. Use the submit_query method instead.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>query</strong> (<em>str</em>) – Pre-forammted search query string.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ul class="simple">
+<li><strong>total_results</strong> (<em>int</em>) – Number of results returned from the query</li>
+<li><strong>product_list</strong> (<em>dict</em>) – Contains all the products returned from the query, keyed by their
+product UUID</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_downloader.CopernicusHubConnection.submit_query">
+<code class="descname">submit_query</code><span class="sig-paren">(</span><em>parameters</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#CopernicusHubConnection.submit_query"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.submit_query" title="Permalink to this definition">¶</a></dt>
+<dd><p>Formats and submits a query to the ESA scihub via requests.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The working of this function relies heavily on the format of the XML
+returned by the ESA remaining constant.
+Returns the number of results and a dict contain the results UUIDs and
+information.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>parameters</strong> (<a class="reference internal" href="#getsentinel.gs_downloader.Query" title="getsentinel.gs_downloader.Query"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Query</span></code></a>) – </td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ul class="simple">
+<li><strong>num_results</strong> (<em>int</em>) – Number of results returned from the query</li>
+<li><strong>product_list</strong> (<em>dict</em>) – Contains all the products returned from the query, keyed by their
+product UUID</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="getsentinel.gs_downloader.Query">
+<em class="property">class </em><code class="descclassname">getsentinel.gs_downloader.</code><code class="descname">Query</code><span class="sig-paren">(</span><em>satellite</em>, <em>start_date</em>, <em>end_date=False</em>, <em>ROI=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#Query"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.Query" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Holds the query parameters use in an ESA hub query.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>sat</strong> (<em>str</em>) – Current Sentinel satellites supported: ‘S1’, ‘S2’</li>
+<li><strong>start_date</strong> (<em>datetime.date</em>) – The start date for the date range of the ESA query</li>
+<li><strong>end_date</strong> (<em>datetime.date</em><em>, </em><em>optional</em>) – The end date for the date range of the ESA query</li>
+<li><strong>ROI</strong> (<em>str</em><em> or </em><em>list</em><em>, </em><em>optional</em>) – Can be a <cite>str</cite> containing the path to a geo-referenced .geojson or
+shapefile or a list of coordinates, see the <cite>set_coordinates</cite> and
+<cite>coords_from_file</cite> methods for more information.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.Query.dates">
+<code class="descname">dates</code><a class="headerlink" href="#getsentinel.gs_downloader.Query.dates" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>tuple</em> – Contains the acquisition start and end datetime.date objects that
+define the query search time period.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.Query.coordinates">
+<code class="descname">coordinates</code><a class="headerlink" href="#getsentinel.gs_downloader.Query.coordinates" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>list</em> – A list containing the coordinates of the boundary of the region of
+interest (ROI).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.Query.tiles">
+<code class="descname">tiles</code><a class="headerlink" href="#getsentinel.gs_downloader.Query.tiles" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>tuple</em> – Contains a list of the ESA defined Sentinel-2 tiles that the ROI
+traverses and the tile which the ROI overlaps the most with in the
+format (overlapped_tiles, majority_tile).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.Query.ROI">
+<code class="descname">ROI</code><a class="headerlink" href="#getsentinel.gs_downloader.Query.ROI" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>shapely.geometry.Polygon</em> – A shapely object defining the border of the region of interst using in
+the query.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.Query.satellite">
+<code class="descname">satellite</code><a class="headerlink" href="#getsentinel.gs_downloader.Query.satellite" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – Defines which Sentinel satellite the query is for, e.g. ‘S1’, ‘S2’</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.Query.proclevel">
+<code class="descname">proclevel</code><a class="headerlink" href="#getsentinel.gs_downloader.Query.proclevel" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str</em> – The processing level of the products desired from the query</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_downloader.Query.details">
+<code class="descname">details</code><a class="headerlink" href="#getsentinel.gs_downloader.Query.details" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>dict</em> – Contains optional parameters for the query</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_downloader.Query.acquisition_date_range">
+<code class="descname">acquisition_date_range</code><span class="sig-paren">(</span><em>acqstart</em>, <em>acqend=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#Query.acquisition_date_range"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.Query.acquisition_date_range" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the date range for the query.</p>
+<p>This method will raise an error if a anything but datetime.date objects
+are passed to it or if acqstart is a date after acqend.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This is used to specify the Sensing Start Time search criteria.
+If no end date is specific, the 24 hour period for the given
+start date is used. Any specified end date is considered
+inclusive.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>acqstart</strong> (<em>datetime.date</em>) – The start date for the date range of the ESA query</li>
+<li><strong>acqend</strong> (<em>datetime.date</em><em>, </em><em>optional</em>) – The end date for the date range of the ESA query</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">None</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_downloader.Query.coords_from_file">
+<code class="descname">coords_from_file</code><span class="sig-paren">(</span><em>filepath</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#Query.coords_from_file"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.Query.coords_from_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads in the coordinates of a region of interest from a shapefile or
+geojson file.</p>
+<p>Uses the osgeo module to extract the coordinate reference system from
+the file and reprojects it to WGS84.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Only geojson and shapefiles are currently supported.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>filepath</strong> (<em>str</em>) – The path to the shapefile or geojson.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"></td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">None</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_downloader.Query.product_details">
+<code class="descname">product_details</code><span class="sig-paren">(</span><em>proclevel=False</em>, <em>producttype=False</em>, <em>mode=False</em>, <em>polarisation=False</em>, <em>orbitdirection=False</em>, <em>resolution=False</em>, <em>cloudcoverlimit=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#Query.product_details"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.Query.product_details" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets product search the satellite type and details.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Some combinations will always produce no results, eg. GRD products do
+note have ‘HH’ polarisations (as of 25th July 2018) and so queries
+using GRD and HH with return 0 results.
+If in doubt, broaden the parameters and always consult the ESA docs.
+See <a class="reference external" href="https://sentinel.esa.int/web/sentinel/user-guides">https://sentinel.esa.int/web/sentinel/user-guides</a> for reference.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>proclevel</strong> (<em>str</em><em>, </em><em>optional</em>) – Current S1 processing levels supported: ‘L0’, ‘L1’, ‘L2’, ‘ALL’
+Current S2 processing levels supported: ‘L1C’, ‘L2A’, ‘BEST’, ‘ALL’
+‘BEST’ searches for the highest level processed product from
+available Sentinel-2 data for the given co-ordinates.</li>
+<li><strong>producttype</strong> (<em>str</em><em>, </em><em>optional</em>) – Current product type supported for S1: ‘RAW’, ‘SLC’, ‘GRD’, ‘OCN’
+Not supported for S2</li>
+<li><strong>mode</strong> (<em>str</em><em>, </em><em>optional</em>) – Current S1 modes identifiers supported: ‘SM’, ‘IW’, ‘EW’, ‘WV’
+Not supported for S2</li>
+<li><strong>polarisation</strong> (<em>str</em><em>, </em><em>optional</em>) – Current S1 polarisations supported: ‘HH’, ‘VV’, ‘HV’, ‘VH’,
+‘HH HV’, ‘VV VH’
+Not supported for S2</li>
+<li><strong>orbitdirection</strong> (<em>str</em><em>, </em><em>optional</em>) – S1 parameter for orbit direction: ‘Ascending’ or ‘Descending’
+Not supported for S2</li>
+<li><strong>resolution</strong> (<em>str</em><em>, </em><em>optional</em>) – Current S1 resolutions supported: F, H, M
+Not supported for S2</li>
+<li><strong>cloudcoverlimit</strong> (<em>int</em><em>, </em><em>optional</em>) – Not supported for S1
+Integer threshold, products with percentage cloud cover higher than
+the threshold with be excluded from the query results.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_downloader.Query.set_coordinates">
+<code class="descname">set_coordinates</code><span class="sig-paren">(</span><em>coordlist</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#Query.set_coordinates"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.Query.set_coordinates" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stores the passed coordinates and generates ROI boundary polygon.</p>
+<p>Stores the passed coordinates list and generates a shapely object
+describing the region of interest. Also uses the gs_gridtest module to
+find the corresponding ESA defined Sentinel-2 product tiles that the
+ROI overlaps.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">coordlist must be in the format [(lon1, lat1), (lon2, lat2), … ]
+First and last co-ordinates given in coordlist must be the same to
+complete the described area.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>coordlist</strong> (<em>list</em>) – List containing the coordinates describing the boundary of the
+region of interest.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"></td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">None</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="getsentinel.gs_downloader.filter_overlaps">
+<code class="descclassname">getsentinel.gs_downloader.</code><code class="descname">filter_overlaps</code><span class="sig-paren">(</span><em>product_list</em>, <em>ROI</em>, <em>external_list=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#filter_overlaps"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.filter_overlaps" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filters out any overlapping products</p>
+<p>If the ROI coordinates are completely encompassed by two products and
+the sensing time for both products is the same, the products will have
+identical data in the overlapping regions. Thus one of them can be removed
+from the downloads required.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>product_list</strong> (<em>dict</em>) – Contains all the products returned from the query, keyed by their
+product UUID</li>
+<li><strong>ROI</strong> (<code class="xref py py-obj docutils literal notranslate"><span class="pre">shapely.geometry.Polygon</span></code>) – </li>
+<li><strong>external_list</strong> (<em>dict</em>) – A list of products provided that represents the products already
+present in the inventory. Prevents filtering from removing one product
+over another when the first is already present in the inventory.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-getsentinel.gs_localmanager">
+<span id="getsentinel-gs-localmanager-module"></span><h2>getsentinel.gs_localmanager module<a class="headerlink" href="#module-getsentinel.gs_localmanager" title="Permalink to this headline">¶</a></h2>
+<p>Downloaded product inventory manager.</p>
+<p>This module provides an up-to-date product inventory and checks the integrity
+of any saved inventory against the actual contents of the DATA_PATH provided by
+the gs_config.</p>
+<p>Products are stored as dictionaries containing all the necessary product info.
+See below for example product info format.</p>
+<p class="rubric">Example</p>
+<p>current_inventory = gs_localmanager.get_product_inventory()</p>
+<p>new_downloaded_products = {uuid: product, uuid: product, …}</p>
+<p>gs_localmanager.add_new_products(new_downloaded_products)</p>
+<div class="section" id="example-product-info-format">
+<h3>Example Product Info Format<a class="headerlink" href="#example-product-info-format" title="Permalink to this headline">¶</a></h3>
+<p>Below is an example format, as stored in the product_inventory.json, of an
+unprocessed Sentinel-1 product. The keys <cite>tileid</cite> and <cite>userprocessed</cite> are
+added by the gs_downloader module. The former denotes the Senntinel-2 MGRS
+tiles that the product traverses, the latter indicates whether the file has
+been processed. For processed products a further field, <cite>origin</cite>, is added
+which contains the UUID of the unprocessed product from which the processed
+product originates.</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>{‘acquisitiontype’: ‘NOMINAL’,</dt>
+<dd>‘beginposition’: ‘2015-08-24T06:22:07.95Z’,
+‘downloadlink’: “<a class="reference external" href="https://scihub.copernicus.eu/dhus/odata/v1/Products">https://scihub.copernicus.eu/dhus/odata/v1/Products</a> … ”
+‘endposition’: ‘2015-08-24T06:22:32.949Z’,
+‘filename’: ‘S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 … ‘
+‘footprint’: ‘POLYGON ((-0.059059 53.057114,-3.867077 53.461575)) ‘
+‘format’: ‘SAFE’,
+‘gmlfootprint’: ‘&lt;gml:Polygon footprint …’
+‘identifier’: ‘S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 … ‘
+‘ingestiondate’: ‘2015-08-24T15:55:01.836Z’,
+‘instrumentname’: ‘Synthetic Aperture Radar (C-band)’,
+‘instrumentshortname’: ‘SAR-C SAR’,
+‘lastorbitnumber’: ‘7401’,
+‘lastrelativeorbitnumber’: ‘154’,
+‘missiondatatakeid’: ‘41709’,
+‘orbitdirection’: ‘DESCENDING’,
+‘orbitnumber’: ‘7401’,
+‘origin’: ‘d42cc6fe-5f81-4753-bf61-dc081af8fa68’,
+‘platformidentifier’: ‘0000-000A’,
+‘platformname’: ‘Sentinel-1’,
+‘polarisationmode’: ‘VV VH’,
+‘productclass’: ‘S’,
+‘producttype’: ‘GRD’,
+‘quicklookdownload’: “https://scihub.copernicus.eu/dhus/ … ”
+‘relativeorbitnumber’: ‘154’,
+‘sensoroperationalmode’: ‘IW’,
+‘size’: ‘1 GB’,
+‘slicenumber’: ‘6’,
+‘status’: ‘ARCHIVED’,
+‘swathidentifier’: ‘IW’,
+‘tileid’: [[‘30UVE’, …]]
+‘userprocessed’: False}</dd>
+</dl>
+</div></blockquote>
+<dl class="function">
+<dt id="getsentinel.gs_localmanager.add_new_products">
+<code class="descclassname">getsentinel.gs_localmanager.</code><code class="descname">add_new_products</code><span class="sig-paren">(</span><em>new_products: dict</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_localmanager.html#add_new_products"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_localmanager.add_new_products" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds new products to the inventory.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This function should be used to add processed products that have been
+manually added by the user.
+This function does not need to be called when you are downloading products
+via gs_downloader as they are added to the inventory automatically.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><strong>added_uuids</strong> – List of strings containing the UUIDs of the products that have been
+successfully added to the inventory.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">list</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="getsentinel.gs_localmanager.check_integrity">
+<code class="descclassname">getsentinel.gs_localmanager.</code><code class="descname">check_integrity</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_localmanager.html#check_integrity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_localmanager.check_integrity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks the integrity of the current inventory.</p>
+<p>Adds any products that were manually added to the DATA_PATH by the user
+since the last check. Removes any missing products.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Any manually added products that have already been processed must be
+explicitly added via <cite>add_new_products</cite>.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">True if successful, will throw an error otherwise.</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">bool</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">RuntimeError</span></code> – If no unique match for a user added product can be found.</li>
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">RuntimeError</span></code> – If the user added product filename does not start with ‘S1’ or ‘S2’</li>
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">UserWarning</span></code> – If a processed product is manually added to the <cite>DATA_PATH</cite> without
+having been added to the inventory by called <cite>add_new_products</cite>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="getsentinel.gs_localmanager.get_product_inventory">
+<code class="descclassname">getsentinel.gs_localmanager.</code><code class="descname">get_product_inventory</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_localmanager.html#get_product_inventory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_localmanager.get_product_inventory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the product inventory as a dictionary keyed by product UUIDs.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><strong>product_inventory</strong> – Dictionary of products that are in the DATA_PATH directory, keyed by
+their UUIDs.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">dict</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+<div class="section" id="module-getsentinel.gs_processor">
+<span id="getsentinel-gs-processor-module"></span><h2>getsentinel.gs_processor module<a class="headerlink" href="#module-getsentinel.gs_processor" title="Permalink to this headline">¶</a></h2>
+<p>Channels under-processed products to the relevant ESA processing tools.</p>
+<p>This modules takes an individual downloaded product UUID and processing the
+corresponding product. The resultant processed product is stored in the product
+inventory and the new UUID under which it is stored is returned.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Sentinel-2 products that are not Level-1C will be skipped and their current
+uuids and product info returned.</p>
+</div>
+<p class="rubric">Example</p>
+<p>from getsentinel import gs_process</p>
+<p>level1c_s2products = {uuid: info, uuid: info}</p>
+<dl class="docutils">
+<dt>for uuid in level1c_s2products:</dt>
+<dd>level2a_s2products = gs_process.batch_process(uuid)</dd>
+</dl>
+<dl class="function">
+<dt id="getsentinel.gs_processor.batch_process">
+<code class="descclassname">getsentinel.gs_processor.</code><code class="descname">batch_process</code><span class="sig-paren">(</span><em>product_inventory</em>, <em>gpt_graph=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_processor.html#batch_process"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_processor.batch_process" title="Permalink to this definition">¶</a></dt>
+<dd><p>Processes a batch of product and returns the new processed products
+uuids and info.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>product_inventory</strong> (<em>dict</em>) – Contains products as supplied in {uuid: info, uuid: info} format.</li>
+<li><strong>gpt_graph</strong> (<em>str</em><em>, </em><em>optional</em>) – The path to the gpt tool graph to be used to process any Sentinel-1
+products supplied.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">Contains the new processed product uuids and info.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">dict</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="getsentinel.gs_processor.process">
+<code class="descclassname">getsentinel.gs_processor.</code><code class="descname">process</code><span class="sig-paren">(</span><em>uuid</em>, <em>gpt_graph=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_processor.html#process"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_processor.process" title="Permalink to this definition">¶</a></dt>
+<dd><p>Channels a product through the corresponding ESA processing tool.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>uuid</strong> (<em>str</em>) – UUID of the product to be processed.</li>
+<li><strong>gpt_graph</strong> (<em>str</em><em>, </em><em>optional</em>) – The path to the gpt tool graph to be used to process a Sentinel-1
+product.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"><ul class="simple">
+<li><em>str</em> – The UUID of the newly generated processed product as it appears in the
+product inventory.</li>
+<li><em>dict</em> – Contains the new product info with parameters changed to reflect the
+processing that has occured.</li>
+</ul>
+</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-getsentinel.gs_stacker">
+<span id="getsentinel-gs-stacker-module"></span><h2>getsentinel.gs_stacker module<a class="headerlink" href="#module-getsentinel.gs_stacker" title="Permalink to this headline">¶</a></h2>
+<p>Extracts data from Sentinel products for given regions of interest.</p>
+<p>Postage stamp ROIs out of given rasters file in batch. After processing the
+Stacker object acts as a dictionary from which numpy arrays containing all the
+multi-temporal data layers.</p>
+<p>Handles both Sentinel-1 and Sentinel-2 rasters over multiple time frames.</p>
+<p class="rubric">Example</p>
+<p>from getsentinel import gs_localmanager, gs_stacker</p>
+<p>products = gs_localmanager.get_product_inventory()</p>
+<p>roi = ‘path/to/test_field.geojson’
+start = datetime.date(2018, 5, 6)
+end = datetime.date(2018, 5, 7)</p>
+<p>stacker = gs_stacker.Stacker(products, roi, start, end)</p>
+<p># get the True Colour Image at resolution 10m
+stacker.set_bands(s2_band_list=[‘TCI’], s2_resolution=10)</p>
+<p>data = stacker.generate_stacks()</p>
+<dl class="class">
+<dt id="getsentinel.gs_stacker.Stack">
+<em class="property">class </em><code class="descclassname">getsentinel.gs_stacker.</code><code class="descname">Stack</code><a class="reference internal" href="_modules/getsentinel/gs_stacker.html#Stack"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_stacker.Stack" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></p>
+<p>Used to add an attribute to an existing numpy array.
+adapted from:
+<a class="reference external" href="https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html">https://docs.scipy.org/doc/numpy-1.12.0/user/basics.subclassing.html</a></p>
+<p>Also masks all the zero values out of the array.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>input_array</strong> (<em>numpy.ndarray</em>) – An existing array that is to be converted to a <cite>Stack</cite>.</li>
+<li><strong>info</strong> (<em>list</em><em>, </em><em>str</em>) – <cite>list</cite> of <cite>str</cite> or just <cite>str</cite> that contains info on each layer such as
+UUID of origin, platform, date of capture, band, and processing level.</li>
+<li><strong>tranform</strong> (<em>affline.Affline</em>) – the out_transform output from the <cite>mask</cite> function of the <cite>rasterio</cite>
+library.</li>
+<li><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – The name of the Stack. Used in the final array stacks to name the
+stacks with the <cite>str</cite> of their corresponding shapefile names.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stack.info">
+<code class="descname">info</code><a class="headerlink" href="#getsentinel.gs_stacker.Stack.info" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>list, str</em> – Copy of parameter <cite>info</cite>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stack.tranform">
+<code class="descname">tranform</code><a class="headerlink" href="#getsentinel.gs_stacker.Stack.tranform" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>affline.Affline</em> – Copy of parameter <cite>transform</cite>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stack.name">
+<code class="descname">name</code><a class="headerlink" href="#getsentinel.gs_stacker.Stack.name" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>str, optional</em> – Copy of paramter <cite>name</cite>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="getsentinel.gs_stacker.Stacker">
+<em class="property">class </em><code class="descclassname">getsentinel.gs_stacker.</code><code class="descname">Stacker</code><span class="sig-paren">(</span><em>product_list</em>, <em>geo_files</em>, <em>start_date</em>, <em>end_date</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_stacker.html#Stacker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_stacker.Stacker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Creates stacks of arrays from a product list and a group of shape files.</p>
+<p>Arrays contains the raster data each passed shapefile over Sentinel
+products covering different dates/times.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The user does not need to concern themselves with checking that the
+products passed contain data for for all the shapefiles. This class will
+sort products to their corresponding shapefiles and filter out all null
+data.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>product_list</strong> (<em>dict</em>) – Contains the Sentinel products containing data relevant to the
+area coverered by the passed shapefiles or geojsons.</li>
+<li><strong>geo_files</strong> (<em>list</em><em> or </em><em>str</em>) – A <cite>list</cite> of <cite>str</cite> containing the paths to all of the relevant
+shapefiles or geojsons or a single <cite>str</cite>.</li>
+<li><strong>start_date</strong> (<em>datetime.date</em>) – The start of the time period used for data extraction. Any Sentinel
+products passed to the <cite>Stacker</cite> but generated outside of this time
+period will be excluded from the extraction process.</li>
+<li><strong>end_date</strong> (<em>datetime.date</em>) – The end of the time period used for data extraction. Inclusive.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.products">
+<code class="descname">products</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.products" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>dict</em> – Filtered copy of <cite>product_list</cite> passed to the object containing only
+products generated between <cite>start_date</cite> and <cite>end_date</cite>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.product_boundaries">
+<code class="descname">product_boundaries</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.product_boundaries" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>dict</em> – Contains <cite>shapely.geometry.Polygon</cite> objects describing the boundaries
+of each of the products in <cite>products</cite>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.geo_files">
+<code class="descname">geo_files</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.geo_files" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>list</em> – Contains a copy of <cite>geo_files</cite> passed to the object.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.start_date">
+<code class="descname">start_date</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.start_date" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>datetime.date</em> – A copy of <cite>start_date</cite> passed to the object.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.end_date">
+<code class="descname">end_date</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.end_date" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>datetime.date</em> – A copy of the <cite>end_date</cite> passed to the object.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.job_list">
+<code class="descname">job_list</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.job_list" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>dict</em> – Contains keys of all the uuids of products passed to the object, with
+their values being the shapefiles that are within the boundaries of
+each product.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.stack_list">
+<code class="descname">stack_list</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.stack_list" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>dict</em> – After the <cite>run</cite> method is called, this <cite>dict</cite> is populated with keys
+that are the names of the shapefiles passed, with their values being
+the corresponding processed <cite>numpy</cite> arrays.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.band_list">
+<code class="descname">band_list</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.band_list" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>list</em> – <cite>list</cite> of <cite>str</cite> containing the product bands that are to be extracted
+from the products.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_stacker.Stacker.check_weather">
+<code class="descname">check_weather</code><span class="sig-paren">(</span><em>cloud=False</em>, <em>snow=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_stacker.html#Stacker.check_weather"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.check_weather" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set a threshold for the probability of cloud or snow cover in the
+region of interest.</p>
+<p>If the probability cover provided by the ESA in the automated cloud and
+snow masks is higher than the user-defined threshold, a warning is
+thrown during stacking.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>cloud</strong> (<em>int</em><em>, </em><em>optional</em>) – The percentrage threshold cloud probability for regions of
+interest, above which the stacker throws a warning.</li>
+<li><strong>snow</strong> (<em>int</em><em>, </em><em>optional</em>) – The percentrage threshold snow probability for regions of
+interest, above which the stacker throws a warning.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">None</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_stacker.Stacker.generate_stacks">
+<code class="descname">generate_stacks</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_stacker.html#Stacker.generate_stacks"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.generate_stacks" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runs the data layer extraction and stacking process.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Currently only supports Sentinel-1 products.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">Contains all the generate <cite>Stack</cite> objects keyed by the names of
+their corresponding shapefiles.</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">dict</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">NotImplementedError</span></code> – If S2 products have been passed to <cite>Stacker</cite>.</li>
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If <cite>set_bands</cite> has not been called before calling <cite>run</cite>.</li>
+<li><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If any products other than S1 or S2 products are passed to
+<cite>Stacker</cite>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_stacker.Stacker.set_bands">
+<code class="descname">set_bands</code><span class="sig-paren">(</span><em>s1_band_list=[]</em>, <em>s2_band_list=[]</em>, <em>s2_resolution=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_stacker.html#Stacker.set_bands"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.set_bands" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets the attribute <cite>band_list</cite> to the passed bands.</p>
+<p>Valid bands for S1 GRD products there are: ‘vv’, ‘vh’.
+Valid bands for S2 L2A products are:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>‘10’: [‘AOT’, ‘B02’, ‘B03’, ‘B04’, ‘B08’, ‘TCI’,</dt>
+<dd>‘WVP’],</dd>
+<dt>‘20’: [‘AOT’, ‘B02’, ‘B03’, ‘B04’, ‘B05’, ‘B06’,</dt>
+<dd>‘B07’, ‘B8A’, ‘B11’, ‘B12’, ‘SCL’, ‘TCI’,
+‘WVP’],</dd>
+<dt>‘60’: [‘AOT’, ‘B02’, ‘B03’, ‘B04’, ‘B05’, ‘B06’,</dt>
+<dd>‘B07’, ‘B8A’, ‘B09’, ‘B11’, ‘B12’, ‘SCL’,
+‘TCI’, ‘WVP’]}</dd>
+</dl>
+</div></blockquote>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Currently only supports S1 GRD products</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>s1_band_list</strong> (<em>list</em>) – <cite>list</cite> of <cite>str</cite> containing the S1 bands the user wants extract from
+the S1 products passed to <cite>Stacker</cite>.
+Required form : [‘band1’, ‘band2’, … ]</li>
+<li><strong>s2_band_list</strong> (<em>list</em>) – <cite>list</cite> of <cite>str</cite> containing the S2 bands the user wants extract from
+the S2 products passed to <cite>Stacker</cite>.
+Required form : [‘band1’, ‘band2’, … ]</li>
+<li><strong>s2_resolution</strong> (<em>int</em><em>, </em><em>optional</em>) – Choose the band resolution of the Sentinel-2 bands. Can be <cite>10</cite>,
+<cite>20</cite>, or <cite>60</cite>.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">None</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal notranslate"><span class="pre">ValueError</span></code> – If the band strings passed are not valid bands.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-getsentinel">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-getsentinel" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">getsentinel</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, G. Worrall.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.7.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.11</a>
+      
+      |
+      <a href="_sources/getsentinel.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
