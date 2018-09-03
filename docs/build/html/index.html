@@ -44,23 +44,28 @@ and extraction of Sentienl data.</p>
 </div>
 <div class="section" id="quick-start-example">
 <h2>Quick Start Example<a class="headerlink" href="#quick-start-example" title="Permalink to this headline">¶</a></h2>
-<dl class="docutils">
-<dt>::</dt>
-<dd><p class="first">from datetime import date
-from getsentinel import gs_downloader, gs_processor, gs_stacker</p>
-<p>roi = ‘region_of_interest.shp’</p>
-<p>start = date(2018, 1, 1)
-end = date(2018, 1, 7)</p>
-<p>query = gs_downloader.Query(‘S2’, start, end, roi)
-query.product_details(‘L1C’, cloudcoverlimit=0)</p>
-<p>hub = gs_downloader.CopernicusHubConnection()
-num_results, products = hub.submit_query(query)</p>
-<p>processed = gs_processor.batch_process(products)</p>
-<p>stacker = gs_stacker.Stacker(processed, roi, start, end)
-stacker.set_bands(s2_band_list=[‘B02’, ‘B03’, ‘B04’])</p>
-<p class="last">data_output = stacker.generate_stacks()</p>
-</dd>
-</dl>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">datetime</span> <span class="k">import</span> <span class="n">date</span>
+<span class="kn">from</span> <span class="nn">getsentinel</span> <span class="k">import</span> <span class="n">gs_downloader</span><span class="p">,</span> <span class="n">gs_processor</span><span class="p">,</span> <span class="n">gs_stacker</span>
+
+<span class="n">roi</span> <span class="o">=</span> <span class="s1">&#39;region_of_interest.shp&#39;</span>
+
+<span class="n">start</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">end</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+
+<span class="n">query</span> <span class="o">=</span> <span class="n">gs_downloader</span><span class="o">.</span><span class="n">Query</span><span class="p">(</span><span class="s1">&#39;S2&#39;</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">roi</span><span class="p">)</span>
+<span class="n">query</span><span class="o">.</span><span class="n">product_details</span><span class="p">(</span><span class="s1">&#39;L1C&#39;</span><span class="p">,</span> <span class="n">cloudcoverlimit</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="n">hub</span> <span class="o">=</span> <span class="n">gs_downloader</span><span class="o">.</span><span class="n">CopernicusHubConnection</span><span class="p">()</span>
+<span class="n">num_results</span><span class="p">,</span> <span class="n">products</span> <span class="o">=</span> <span class="n">hub</span><span class="o">.</span><span class="n">submit_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+
+<span class="n">processed</span> <span class="o">=</span> <span class="n">gs_processor</span><span class="o">.</span><span class="n">batch_process</span><span class="p">(</span><span class="n">products</span><span class="p">)</span>
+
+<span class="n">stacker</span> <span class="o">=</span> <span class="n">gs_stacker</span><span class="o">.</span><span class="n">Stacker</span><span class="p">(</span><span class="n">processed</span><span class="p">,</span> <span class="n">roi</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+<span class="n">stacker</span><span class="o">.</span><span class="n">set_bands</span><span class="p">(</span><span class="n">s2_band_list</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;B02&#39;</span><span class="p">,</span> <span class="s1">&#39;B03&#39;</span><span class="p">,</span> <span class="s1">&#39;B04&#39;</span><span class="p">])</span>
+
+<span class="n">data_output</span> <span class="o">=</span> <span class="n">stacker</span><span class="o">.</span><span class="n">generate_stacks</span><span class="p">()</span>
+</pre></div>
+</div>
 </div>
 </div>
 <div class="section" id="indices-and-tables">

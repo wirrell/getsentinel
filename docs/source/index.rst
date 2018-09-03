@@ -14,6 +14,7 @@ and extraction of Sentienl data.
 Quick Start Example
 -------------------
 ::
+
     from datetime import date
     from getsentinel import gs_downloader, gs_processor, gs_stacker
 
