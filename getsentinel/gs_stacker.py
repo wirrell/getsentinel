@@ -141,10 +141,6 @@ class Stacker():
                  'B07', 'B8A', 'B09', 'B11', 'B12', 'SCL',
                  'TCI', 'WVP']}
 
-        Note
-        ----
-        Currently only supports S1 GRD products
-
         Parameters
         ----------
         s1_band_list : list
@@ -216,10 +212,6 @@ class Stacker():
 
     def generate_stacks(self):
         """Runs the data layer extraction and stacking process.
-
-        Note
-        ----
-        Currently only supports Sentinel-1 products.
 
         Returns
         -------
