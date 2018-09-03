@@ -3,6 +3,5 @@ clint
 pyshp
 geojson
 shapely
-gdal
 numpy
 rasterio
