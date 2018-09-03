@@ -28,9 +28,11 @@ def _get_config():
     """Loads in the config details from the gs_config.txt file."""
 
     if not pathlib.Path(CONFIG_PATH).exists():
-        print("Config file does not exist. Please enter the following"
-              " details:\n")
-        set_userinfo()
+        print("Config file does not exist. Creating gs_config.txt in"
+              " the installation directory.\n")
+        print("Please edition the details inside the config file or"
+              " run the gs_config.set_userinfo() function.")
+        set_userinfo(USER_INFO_DICT)
     with open(CONFIG_PATH, 'r') as config_file:
         config = json.load(config_file)
 
