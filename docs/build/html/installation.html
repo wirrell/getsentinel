@@ -40,9 +40,21 @@
 </pre></div>
 </div>
 <p>or from source &#64; <a class="reference external" href="https://www.bitbucket.org/wirrell/getsentinel">https://www.bitbucket.org/wirrell/getsentinel</a></p>
-<p>If you are having troubled with the GDAL installation, try this StackOverflow
-answer:</p>
-<p><a class="reference external" href="https://stackoverflow.com/questions/37294127/python-gdal-2-1-installation-on-ubuntu-16-04">https://stackoverflow.com/questions/37294127/python-gdal-2-1-installation-on-ubuntu-16-04</a></p>
+<div class="section" id="gdal">
+<h2>GDAL<a class="headerlink" href="#gdal" title="Permalink to this headline">¶</a></h2>
+<p>You must install the Python GDAL bindings OSGeo separately.
+It has been excluded from the requirements.txt as the current PyPI hosted
+version does not work for all machines.</p>
+<p>If you do not already have the GDAL C libraries installed, install them.</p>
+<p>I recommended this method for installing C libraries and OSGeo from stackoverflow:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">add</span><span class="o">-</span><span class="n">apt</span><span class="o">-</span><span class="n">repository</span> <span class="o">-</span><span class="n">y</span> <span class="n">ppa</span><span class="p">:</span><span class="n">ubuntugis</span><span class="o">/</span><span class="n">ppa</span>
+<span class="n">sudo</span> <span class="n">apt</span> <span class="n">update</span>
+<span class="n">sudo</span> <span class="n">apt</span> <span class="n">install</span> <span class="n">gdal</span><span class="o">-</span><span class="nb">bin</span> <span class="n">python</span><span class="o">-</span><span class="n">gdal</span> <span class="n">python3</span><span class="o">-</span><span class="n">gdal</span>
+</pre></div>
+</div>
+<p>or similar for your Linux flavour.</p>
+<p>from: <a class="reference external" href="https://stackoverflow.com/questions/37294127/python-gdal-2-1-installation-on-ubuntu-16-04">https://stackoverflow.com/questions/37294127/python-gdal-2-1-installation-on-ubuntu-16-04</a></p>
+</div>
 </div>
 
 
@@ -64,7 +76,10 @@ answer:</p>
 <h3>Navigation</h3>
 <p class="caption"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#gdal">GDAL</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="modules.html">Modules</a></li>
 </ul>
 
