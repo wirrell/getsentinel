@@ -29,29 +29,39 @@ USER_INFO_DICT = {'user': 'ESA_username',
                   'sen2cor': '/path/to/sen2cor/L2A_Process',
                   'gpt': '/path/to/gpt',
                   'data': '/path/to/store/data',
-                  'qlooks': '/path/to/store/quicklooks'}
+                  'qlooks': '/path/to/store/quicklooks',
+                  'is_set': False}
 
 
 def _get_config():
     """Loads in the config details from the gs_config.txt file."""
 
     if not pathlib.Path(CONFIG_PATH).exists():
-        print("Config file does not exist. Creating gs_config.txt in"
+        print("Config file does not exist. Creating gs_config.json in"
               " the installation directory.\n")
-        print("Please edition the details inside the config file or"
-              " run the gs_config.set_userinfo() function.")
+        print("Please re-run your script to be prompted for to enter config "
+              "information.")
         set_userinfo(USER_INFO_DICT)
+        raise RuntimeError("Config file does not exist. Creating gs_config.json in"
+                           " the installation directory.\n"
+                           "Please re-run your script to be prompted for to "
+                           "enter config information.")
     with open(CONFIG_PATH, 'r') as config_file:
         config = json.load(config_file)
 
     keys = ['esa_username', 'esa_password', 'sen2cor_path', 'snap_gpt',
-            'data_path', 'quicklooks_path']
+            'data_path', 'quicklooks_path', 'is_set']
 
     for key in keys:
         if key not in config:
             print("Config file is corrupted. Deleting config file.")
+            pathlib.Path(CONFIG_PATH).unlink()
+            set_userinfo(USER_INFO_DICT)
             raise RuntimeError("A config file error occured. Please re-run "
                                " your script and re-enter your config info.")
+    if not config['is_set']:
+        set_userinfo()
+        config = _get_config()
 
     return config
 
@@ -100,9 +110,11 @@ def set_userinfo(info_dict=False):
             gpt = info_dict['gpt']
             data = info_dict['data']
             qlooks = info_dict['qlooks']
-            _save_config(user, passw, sen2cor, gpt, data, qlooks)
+            is_set = info_dict['is_set']
+            _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set)
 
             return
+        
         except KeyError:
             raise KeyError("The dictionary passed to"
                            " gs_config.set_userinfo is not in the correct"
@@ -114,7 +126,24 @@ def set_userinfo(info_dict=False):
     passw = _ask_user("your ESA SciHub password")
     sen2cor = _ask_user("the absolute path to your ESA sen2cor installation "
                         "L2A_Process tool")
+    # Check to see if L2A_Process tool exists at the file path
+    while True:
+        sen2cor_path = pathlib.Path(sen2cor)
+        if sen2cor_path.exists() and sen2cor_path.stem == 'L2A_Process':
+            break
+        print("Could not find the L2A_Process file at that location.")
+        sen2cor = _ask_user("the absolute path to your ESA sen2cor "
+                            "installation L2A_Process tool")
+
     gpt = _ask_user("the absolute path to your SNAP installation gpt tool")
+    # Check to see if gpt tool exists at the file path
+    while True:
+        gpt_path = pathlib.Path(gpt)
+        if gpt_path.exists() and gpt_path.stem == 'gpt':
+            break
+        print("Could not find the gpt file at that location.")
+        gpt = _ask_user("the absolute path to your SNAP installation gpt tool")
+
     default = 'data/'
     data = _ask_user("the path where you want your Sentinel data to be stored",
                      default)
@@ -127,10 +156,10 @@ def set_userinfo(info_dict=False):
     if not qlooks:
         qlooks = default
 
-    _save_config(user, passw, sen2cor, gpt, data, qlooks)
+    _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set=True)
 
 
-def _save_config(user, passw, sen2cor, gpt, data, qlooks):
+def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set = False):
     """Saves all the details to the config file."""
 
     config = {}
@@ -140,13 +169,14 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks):
     config['snap_gpt'] = gpt
     config['data_path'] = data
     config['quicklooks_path'] = qlooks
+    config['is_set'] = is_set
 
     with open(CONFIG_PATH, 'w') as config_file:
         json.dump(config, config_file)
 
 
 INSTALL_PATH = os.path.dirname(os.path.realpath(__file__))
-CONFIG_PATH = os.path.join(INSTALL_PATH, 'gs_config.txt')
+CONFIG_PATH = os.path.join(INSTALL_PATH, 'gs_config.json')
 
 _config_info = _get_config()
 

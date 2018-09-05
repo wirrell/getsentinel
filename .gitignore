@@ -1,4 +1,4 @@
 *.pyc
 *.swp
 /getsentinel/__pycache__
-/getsentinel/gs_config.txt
+/getsentinel/gs_config.json
