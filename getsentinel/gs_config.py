@@ -80,7 +80,7 @@ def _ask_user(info_string, default=False):
 
     try:
         info = input(request_string)
-    except EOFError:
+    except EOFError, ValueError:
         print("No input detected, exiting.")
         exit()
 
