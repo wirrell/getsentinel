@@ -24,8 +24,8 @@ import pathlib
 import json
 
 
-USER_INFO_DICT = {'user': 'ESA_username',
-                  'passw': 'ESA_password',
+USER_INFO_DICT = {'user': 'esa_username',
+                  'passw': 'esa_password',
                   'sen2cor': '/path/to/sen2cor/L2A_Process',
                   'gpt': '/path/to/gpt',
                   'data': '/path/to/store/data',
