@@ -76,7 +76,11 @@ def _ask_user(info_string, default=False):
             default)
         request_string = request_string[:-1] + default_str
 
-    info = input(request_string)
+    try:
+        info = input(request_string)
+    except EOFError:
+        print("No input detected, exiting.")
+        exit()
 
     return info
 
