@@ -42,10 +42,10 @@ def _get_config():
         print("Please re-run your script to be prompted for to enter config "
               "information.")
         set_userinfo(USER_INFO_DICT)
-        raise RuntimeError("Config file does not exist. Creating gs_config.json in"
-                           " the installation directory.\n"
-                           "Please re-run your script to be prompted for to "
-                           "enter config information.")
+        raise print("Config file does not exist. Creating gs_config.json in"
+                    " the installation directory.\n"
+                    "Please re-run your script to be prompted for to "
+                    "enter config information.")
     with open(CONFIG_PATH, 'r') as config_file:
         config = json.load(config_file)
 
@@ -57,8 +57,10 @@ def _get_config():
             print("Config file is corrupted. Deleting config file.")
             pathlib.Path(CONFIG_PATH).unlink()
             set_userinfo(USER_INFO_DICT)
-            raise RuntimeError("A config file error occured. Please re-run "
-                               " your script and re-enter your config info.")
+            print("A config file error occured. Please re-run "
+                  " your script and re-enter your config info.")
+            exit()
+
     if not config['is_set']:
         set_userinfo()
         config = _get_config()
