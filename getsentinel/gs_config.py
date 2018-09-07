@@ -59,7 +59,6 @@ def _get_config():
             set_userinfo(USER_INFO_DICT)
             print("A config file error occured. Please re-run "
                   " your script and re-enter your config info.")
-            exit()
 
     if not config['is_set']:
         set_userinfo()
@@ -81,8 +80,7 @@ def _ask_user(info_string, default=False):
     try:
         info = input(request_string)
     except (EOFError, ValueError) as e:  # error wrapper needed for readthedocs
-        print("No input detected, exiting.")
-        exit()
+        print("No input detected.")
 
     return info
 
