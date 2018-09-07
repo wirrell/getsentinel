@@ -36,7 +36,7 @@ USER_INFO_DICT = {'user': 'ESA_username',
 def _get_config():
     """Loads in the config details from the gs_config.txt file."""
 
-    config = {}
+    config = USER_INFO_DICT
 
     if not pathlib.Path(CONFIG_PATH).exists():
         set_userinfo(USER_INFO_DICT)
@@ -116,7 +116,7 @@ def set_userinfo(info_dict=False):
             _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set)
 
             return
-        
+
         except KeyError:
             raise KeyError("The dictionary passed to"
                            " gs_config.set_userinfo is not in the correct"
@@ -161,7 +161,7 @@ def set_userinfo(info_dict=False):
     _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set=True)
 
 
-def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set = False):
+def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set=False):
     """Saves all the details to the config file."""
 
     config = {}
