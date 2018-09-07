@@ -44,8 +44,8 @@ def _get_config():
         set_userinfo(USER_INFO_DICT)
         raise print("Config file does not exist. Creating gs_config.json in"
                     " the installation directory.\n"
-                    "Please re-run your script to be prompted for to "
-                    "enter config information.")
+                    "Set the config file runnig gs_config.set_userinfo()"
+                    " or editing the config file.")
     with open(CONFIG_PATH, 'r') as config_file:
         config = json.load(config_file)
 
@@ -61,8 +61,10 @@ def _get_config():
                   " your script and re-enter your config info.")
 
     if not config['is_set']:
-        set_userinfo()
-        config = _get_config()
+        print("Config file not set, please run gs_config.set_userinfo()\n")
+        print(" or edit the gs_config.json file generated in the working"
+              " directory.")
+        return
 
     return config
 
@@ -77,11 +79,7 @@ def _ask_user(info_string, default=False):
             default)
         request_string = request_string[:-1] + default_str
 
-    try:
-        info = input(request_string)
-    except (EOFError, ValueError) as e:  # error wrapper needed for readthedocs
-        print("No input detected.")
-        info = None
+    info = input(request_string)
 
     return info
 
@@ -175,16 +173,13 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set = False):
     config['data_path'] = data
     config['quicklooks_path'] = qlooks
     config['is_set'] = is_set
-    for key, info in config.items():
-        if info is None:
-            config['is_set'] = False
 
     with open(CONFIG_PATH, 'w') as config_file:
         json.dump(config, config_file)
 
 
 INSTALL_PATH = os.path.dirname(os.path.realpath(__file__))
-CONFIG_PATH = os.path.join(INSTALL_PATH, 'gs_config.json')
+CONFIG_PATH = 'gs_config.json'
 
 _config_info = _get_config()
 
