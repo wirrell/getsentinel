@@ -9,19 +9,20 @@ or from source @ https://www.bitbucket.org/wirrell/getsentinel
 
 GDAL
 ----
-
-You must install the Python GDAL bindings OSGeo separately.
-It has been excluded from the requirements.txt as the current PyPI hosted
-version does not work for all machines.
-
 If you do not already have the GDAL C libraries installed, install them.
+https://trac.osgeo.org/gdal/wiki/DownloadSource
 
-I recommended this method for installing C libraries and OSGeo from stackoverflow::
+Note
+----
+Currenlty the latest version of GDAL does not compile on some systems.
 
-    sudo add-apt-repository -y ppa:ubuntugis/ppa
-    sudo apt update 
-    sudo apt install gdal-bin python-gdal python3-gdal
+`sudo yum install gdal` will install GDAL 2.2.4.
 
-or similar for your Linux flavour.
+when you have installed the GDAL libraries, type `gdalconfig --version` to get
+the version number of your GDAL installation.
 
-from: https://stackoverflow.com/questions/37294127/python-gdal-2-1-installation-on-ubuntu-16-04
+From there you should `pip install pygdal=={yourgdalversionnumber}` to ensure
+you get a working pygdal installation.
+
+Because this is a nuanced pygdal installation, pygdal is not currently included
+in the `pip` required packages for `getsentinel`.
