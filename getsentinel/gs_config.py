@@ -81,6 +81,7 @@ def _ask_user(info_string, default=False):
         info = input(request_string)
     except (EOFError, ValueError) as e:  # error wrapper needed for readthedocs
         print("No input detected.")
+        info = None
 
     return info
 
@@ -174,6 +175,9 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set = False):
     config['data_path'] = data
     config['quicklooks_path'] = qlooks
     config['is_set'] = is_set
+    for key, info in config.items():
+        if info is None:
+            config['is_set'] = False
 
     with open(CONFIG_PATH, 'w') as config_file:
         json.dump(config, config_file)
