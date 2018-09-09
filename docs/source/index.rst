@@ -2,7 +2,7 @@ getsentinel documentation
 =======================================
 
 `getsentinel` is a Python package for automating the downloading, processing
-and extraction of Sentienl data.
+and extraction of Sentinel data.
 
 .. toctree::
    :maxdepth: 2

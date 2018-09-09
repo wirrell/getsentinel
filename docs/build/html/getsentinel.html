@@ -41,40 +41,82 @@
 <span id="getsentinel-gs-config-module"></span><h2>getsentinel.gs_config module<a class="headerlink" href="#module-getsentinel.gs_config" title="Permalink to this headline">¶</a></h2>
 <p>Handles getsentinel configuration</p>
 <p>Provides the paths for all the internal workings of getsentinel.</p>
+<dl class="class">
+<dt id="getsentinel.gs_config.UserConfig">
+<em class="property">class </em><code class="descclassname">getsentinel.gs_config.</code><code class="descname">UserConfig</code><a class="reference internal" href="_modules/getsentinel/gs_config.html#UserConfig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_config.UserConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Holder class for configuration info.</p>
 <dl class="attribute">
-<dt id="getsentinel.gs_config.ESA_USERNAME">
-<code class="descclassname">getsentinel.gs_config.</code><code class="descname">ESA_USERNAME</code><a class="headerlink" href="#getsentinel.gs_config.ESA_USERNAME" title="Permalink to this definition">¶</a></dt>
+<dt id="getsentinel.gs_config.UserConfig.ESA_USERNAME">
+<code class="descname">ESA_USERNAME</code><a class="headerlink" href="#getsentinel.gs_config.UserConfig.ESA_USERNAME" title="Permalink to this definition">¶</a></dt>
 <dd><p><em>str</em> – The ESA SciHub username for the user.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="getsentinel.gs_config.ESA_PASSWORD">
-<code class="descclassname">getsentinel.gs_config.</code><code class="descname">ESA_PASSWORD</code><a class="headerlink" href="#getsentinel.gs_config.ESA_PASSWORD" title="Permalink to this definition">¶</a></dt>
+<dt id="getsentinel.gs_config.UserConfig.ESA_PASSWORD">
+<code class="descname">ESA_PASSWORD</code><a class="headerlink" href="#getsentinel.gs_config.UserConfig.ESA_PASSWORD" title="Permalink to this definition">¶</a></dt>
 <dd><p><em>str</em> – The ESA SciHub password for the user.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="getsentinel.gs_config.SEN2COR_ROOT_PATH">
-<code class="descclassname">getsentinel.gs_config.</code><code class="descname">SEN2COR_ROOT_PATH</code><a class="headerlink" href="#getsentinel.gs_config.SEN2COR_ROOT_PATH" title="Permalink to this definition">¶</a></dt>
+<dt id="getsentinel.gs_config.UserConfig.SEN2COR_ROOT_PATH">
+<code class="descname">SEN2COR_ROOT_PATH</code><a class="headerlink" href="#getsentinel.gs_config.UserConfig.SEN2COR_ROOT_PATH" title="Permalink to this definition">¶</a></dt>
 <dd><p><em>str</em> – Contains the aboslute filepath to the sen2cor installation.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="getsentinel.gs_config.GPT_ROOT_PATH">
-<code class="descclassname">getsentinel.gs_config.</code><code class="descname">GPT_ROOT_PATH</code><a class="headerlink" href="#getsentinel.gs_config.GPT_ROOT_PATH" title="Permalink to this definition">¶</a></dt>
+<dt id="getsentinel.gs_config.UserConfig.GPT_ROOT_PATH">
+<code class="descname">GPT_ROOT_PATH</code><a class="headerlink" href="#getsentinel.gs_config.UserConfig.GPT_ROOT_PATH" title="Permalink to this definition">¶</a></dt>
 <dd><p><em>str</em> – The absolute filepath to the Sentinel Toolbox gpt utility.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="getsentinel.gs_config.DATA_PATH">
-<code class="descclassname">getsentinel.gs_config.</code><code class="descname">DATA_PATH</code><a class="headerlink" href="#getsentinel.gs_config.DATA_PATH" title="Permalink to this definition">¶</a></dt>
+<dt id="getsentinel.gs_config.UserConfig.DATA_PATH">
+<code class="descname">DATA_PATH</code><a class="headerlink" href="#getsentinel.gs_config.UserConfig.DATA_PATH" title="Permalink to this definition">¶</a></dt>
 <dd><p><em>str</em> – The relative or absolute filepath to the data storage directory.</p>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="getsentinel.gs_config.QUICKLOOKS_PATH">
-<code class="descclassname">getsentinel.gs_config.</code><code class="descname">QUICKLOOKS_PATH</code><a class="headerlink" href="#getsentinel.gs_config.QUICKLOOKS_PATH" title="Permalink to this definition">¶</a></dt>
+<dt id="getsentinel.gs_config.UserConfig.QUICKLOOKS_PATH">
+<code class="descname">QUICKLOOKS_PATH</code><a class="headerlink" href="#getsentinel.gs_config.UserConfig.QUICKLOOKS_PATH" title="Permalink to this definition">¶</a></dt>
 <dd><p><em>str</em> – The relative or absolute filepath to the quicklooks storage directory.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">DATA_PATH</code></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">ESA_PASSWORD</code></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">ESA_USERNAME</code></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">GPT_ROOT_PATH</code></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">QUICKLOOKS_PATH</code></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt>
+<code class="descname">SEN2COR_ROOT_PATH</code></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="getsentinel.gs_config.UserConfig.get_property">
+<code class="descname">get_property</code><span class="sig-paren">(</span><em>property_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_config.html#UserConfig.get_property"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_config.UserConfig.get_property" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 <dl class="function">
@@ -83,7 +125,9 @@
 <dd><p>Get the path and account info from the user.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">This function should be called to reset change the user config info.</p>
+<p class="last">This function can be called to reset/change the user config info
+or the user can just delete the gs_config.json file in the working
+directory.</p>
 </div>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -146,6 +190,12 @@ Queries and downloads are based on dates, coordinates, and product type.</p>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Handles queries and product downloads to and from the ESA SciHub.</p>
 <dl class="attribute">
+<dt id="getsentinel.gs_downloader.CopernicusHubConnection.config">
+<code class="descname">config</code><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.config" title="Permalink to this definition">¶</a></dt>
+<dd><p><cite>gs_config.UserConfig</cite> – Class container for user configuation info.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="getsentinel.gs_downloader.CopernicusHubConnection.username">
 <code class="descname">username</code><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.username" title="Permalink to this definition">¶</a></dt>
 <dd><p><em>str</em> – The user’s ESA account username.</p>
@@ -184,7 +234,7 @@ product UUID</li>
 
 <dl class="method">
 <dt id="getsentinel.gs_downloader.CopernicusHubConnection.download_quicklooks">
-<code class="descname">download_quicklooks</code><span class="sig-paren">(</span><em>productlist</em>, <em>downloadpath='quicklooks/'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#CopernicusHubConnection.download_quicklooks"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.download_quicklooks" title="Permalink to this definition">¶</a></dt>
+<code class="descname">download_quicklooks</code><span class="sig-paren">(</span><em>productlist</em>, <em>downloadpath=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_downloader.html#CopernicusHubConnection.download_quicklooks"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_downloader.CopernicusHubConnection.download_quicklooks" title="Permalink to this definition">¶</a></dt>
 <dd><p>Downloads the quicklooks of  products to a specified directory.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
@@ -505,9 +555,13 @@ the gs_config.</p>
 <p>Products are stored as dictionaries containing all the necessary product info.
 See below for example product info format.</p>
 <p class="rubric">Example</p>
-<p>current_inventory = gs_localmanager.get_product_inventory()</p>
-<p>new_downloaded_products = {uuid: product, uuid: product, …}</p>
-<p>gs_localmanager.add_new_products(new_downloaded_products)</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">current_inventory</span> <span class="o">=</span> <span class="n">gs_localmanager</span><span class="o">.</span><span class="n">get_product_inventory</span><span class="p">()</span>
+
+<span class="n">new_downloaded_products</span> <span class="o">=</span> <span class="p">{</span><span class="n">uuid</span><span class="p">:</span> <span class="n">product</span><span class="p">,</span> <span class="n">uuid</span><span class="p">:</span> <span class="n">product</span><span class="p">,</span> <span class="o">...</span><span class="p">}</span>
+
+<span class="n">gs_localmanager</span><span class="o">.</span><span class="n">add_new_products</span><span class="p">(</span><span class="n">new_downloaded_products</span><span class="p">)</span>
+</pre></div>
+</div>
 <div class="section" id="example-product-info-format">
 <h3>Example Product Info Format<a class="headerlink" href="#example-product-info-format" title="Permalink to this headline">¶</a></h3>
 <p>Below is an example format, as stored in the product_inventory.json, of an
@@ -517,42 +571,40 @@ tiles that the product traverses, the latter indicates whether the file has
 been processed. For processed products a further field, <cite>origin</cite>, is added
 which contains the UUID of the unprocessed product from which the processed
 product originates.</p>
-<blockquote>
-<div><dl class="docutils">
-<dt>{‘acquisitiontype’: ‘NOMINAL’,</dt>
-<dd>‘beginposition’: ‘2015-08-24T06:22:07.95Z’,
-‘downloadlink’: “<a class="reference external" href="https://scihub.copernicus.eu/dhus/odata/v1/Products">https://scihub.copernicus.eu/dhus/odata/v1/Products</a> … ”
-‘endposition’: ‘2015-08-24T06:22:32.949Z’,
-‘filename’: ‘S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 … ‘
-‘footprint’: ‘POLYGON ((-0.059059 53.057114,-3.867077 53.461575)) ‘
-‘format’: ‘SAFE’,
-‘gmlfootprint’: ‘&lt;gml:Polygon footprint …’
-‘identifier’: ‘S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 … ‘
-‘ingestiondate’: ‘2015-08-24T15:55:01.836Z’,
-‘instrumentname’: ‘Synthetic Aperture Radar (C-band)’,
-‘instrumentshortname’: ‘SAR-C SAR’,
-‘lastorbitnumber’: ‘7401’,
-‘lastrelativeorbitnumber’: ‘154’,
-‘missiondatatakeid’: ‘41709’,
-‘orbitdirection’: ‘DESCENDING’,
-‘orbitnumber’: ‘7401’,
-‘origin’: ‘d42cc6fe-5f81-4753-bf61-dc081af8fa68’,
-‘platformidentifier’: ‘0000-000A’,
-‘platformname’: ‘Sentinel-1’,
-‘polarisationmode’: ‘VV VH’,
-‘productclass’: ‘S’,
-‘producttype’: ‘GRD’,
-‘quicklookdownload’: “https://scihub.copernicus.eu/dhus/ … ”
-‘relativeorbitnumber’: ‘154’,
-‘sensoroperationalmode’: ‘IW’,
-‘size’: ‘1 GB’,
-‘slicenumber’: ‘6’,
-‘status’: ‘ARCHIVED’,
-‘swathidentifier’: ‘IW’,
-‘tileid’: [[‘30UVE’, …]]
-‘userprocessed’: False}</dd>
-</dl>
-</div></blockquote>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s1">&#39;acquisitiontype&#39;</span><span class="p">:</span> <span class="s1">&#39;NOMINAL&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;beginposition&#39;</span><span class="p">:</span> <span class="s1">&#39;2015-08-24T06:22:07.95Z&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;downloadlink&#39;</span><span class="p">:</span> <span class="s2">&quot;https://scihub.copernicus.eu/dhus/odata/v1/Products ... &quot;</span>
+ <span class="s1">&#39;endposition&#39;</span><span class="p">:</span> <span class="s1">&#39;2015-08-24T06:22:32.949Z&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;filename&#39;</span><span class="p">:</span> <span class="s1">&#39;S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 ... &#39;</span>
+ <span class="s1">&#39;footprint&#39;</span><span class="p">:</span> <span class="s1">&#39;POLYGON ((-0.059059 53.057114,-3.867077 53.461575)) &#39;</span>
+ <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="s1">&#39;SAFE&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;gmlfootprint&#39;</span><span class="p">:</span> <span class="s1">&#39;&lt;gml:Polygon footprint ...&#39;</span>
+ <span class="s1">&#39;identifier&#39;</span><span class="p">:</span> <span class="s1">&#39;S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_ ... &#39;</span>
+ <span class="s1">&#39;ingestiondate&#39;</span><span class="p">:</span> <span class="s1">&#39;2015-08-24T15:55:01.836Z&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;instrumentname&#39;</span><span class="p">:</span> <span class="s1">&#39;Synthetic Aperture Radar (C-band)&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;instrumentshortname&#39;</span><span class="p">:</span> <span class="s1">&#39;SAR-C SAR&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;lastorbitnumber&#39;</span><span class="p">:</span> <span class="s1">&#39;7401&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;lastrelativeorbitnumber&#39;</span><span class="p">:</span> <span class="s1">&#39;154&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;missiondatatakeid&#39;</span><span class="p">:</span> <span class="s1">&#39;41709&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;orbitdirection&#39;</span><span class="p">:</span> <span class="s1">&#39;DESCENDING&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;orbitnumber&#39;</span><span class="p">:</span> <span class="s1">&#39;7401&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;origin&#39;</span><span class="p">:</span> <span class="s1">&#39;d42cc6fe-5f81-4753-bf61-dc081af8fa68&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;platformidentifier&#39;</span><span class="p">:</span> <span class="s1">&#39;0000-000A&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;platformname&#39;</span><span class="p">:</span> <span class="s1">&#39;Sentinel-1&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;polarisationmode&#39;</span><span class="p">:</span> <span class="s1">&#39;VV VH&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;productclass&#39;</span><span class="p">:</span> <span class="s1">&#39;S&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;producttype&#39;</span><span class="p">:</span> <span class="s1">&#39;GRD&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;quicklookdownload&#39;</span><span class="p">:</span> <span class="s2">&quot;https://scihub.copernicus.eu/dhus/ ... &quot;</span>
+ <span class="s1">&#39;relativeorbitnumber&#39;</span><span class="p">:</span> <span class="s1">&#39;154&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;sensoroperationalmode&#39;</span><span class="p">:</span> <span class="s1">&#39;IW&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="s1">&#39;1 GB&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;slicenumber&#39;</span><span class="p">:</span> <span class="s1">&#39;6&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="s1">&#39;ARCHIVED&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;swathidentifier&#39;</span><span class="p">:</span> <span class="s1">&#39;IW&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;tileid&#39;</span><span class="p">:</span> <span class="p">[[</span><span class="s1">&#39;30UVE&#39;</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>
+ <span class="s1">&#39;userprocessed&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+</pre></div>
+</div>
 <dl class="function">
 <dt id="getsentinel.gs_localmanager.add_new_products">
 <code class="descclassname">getsentinel.gs_localmanager.</code><code class="descname">add_new_products</code><span class="sig-paren">(</span><em>new_products: dict</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_localmanager.html#add_new_products"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_localmanager.add_new_products" title="Permalink to this definition">¶</a></dt>
@@ -796,6 +848,12 @@ period will be excluded from the extraction process.</li>
 </tr>
 </tbody>
 </table>
+<dl class="attribute">
+<dt id="getsentinel.gs_stacker.Stacker.config">
+<code class="descname">config</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.config" title="Permalink to this definition">¶</a></dt>
+<dd><p><cite>gs_config.UserConfig</cite> – Class container for user configuation info.</p>
+</dd></dl>
+
 <dl class="attribute">
 <dt id="getsentinel.gs_stacker.Stacker.products">
 <code class="descname">products</code><a class="headerlink" href="#getsentinel.gs_stacker.Stacker.products" title="Permalink to this definition">¶</a></dt>

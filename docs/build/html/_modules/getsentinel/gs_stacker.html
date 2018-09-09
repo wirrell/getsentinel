@@ -66,7 +66,6 @@
 <span class="c1"># Revisit non-uniform arrays after masking. Is it fixed after applying orbit</span>
 <span class="c1"># files in gpt?</span>
 
-<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">gs_config</span>
 <span class="kn">import</span> <span class="nn">datetime</span>
 <span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
@@ -76,6 +75,7 @@
 <span class="kn">import</span> <span class="nn">rasterio</span>
 <span class="kn">import</span> <span class="nn">rasterio.mask</span>
 <span class="kn">from</span> <span class="nn">osgeo</span> <span class="k">import</span> <span class="n">osr</span><span class="p">,</span> <span class="n">ogr</span>
+<span class="kn">from</span> <span class="nn">.gs_config</span> <span class="k">import</span> <span class="n">UserConfig</span>
 
 
 <div class="viewcode-block" id="Stacker"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_stacker.Stacker">[docs]</a><span class="k">class</span> <span class="nc">Stacker</span><span class="p">():</span>
@@ -108,6 +108,8 @@
 
 <span class="sd">    Attributes</span>
 <span class="sd">    ----------</span>
+<span class="sd">    config : `gs_config.UserConfig`</span>
+<span class="sd">        Class container for user configuation info.</span>
 <span class="sd">    products : dict</span>
 <span class="sd">        Filtered copy of `product_list` passed to the object containing only</span>
 <span class="sd">        products generated between `start_date` and `end_date`.</span>
@@ -140,6 +142,7 @@
                  <span class="n">start_date</span><span class="p">,</span>
                  <span class="n">end_date</span><span class="p">):</span>
 
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">UserConfig</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">geo_files</span> <span class="o">=</span> <span class="n">geo_files</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">start_date</span> <span class="o">=</span> <span class="n">start_date</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">end_date</span> <span class="o">=</span> <span class="n">end_date</span>
@@ -497,7 +500,7 @@
                 <span class="s1">&#39;processing&#39;</span><span class="p">:</span> <span class="n">product</span><span class="p">[</span><span class="s1">&#39;producttype&#39;</span><span class="p">]}</span>
 
         <span class="k">if</span> <span class="n">platform</span> <span class="o">==</span> <span class="s1">&#39;Sentinel-2&#39;</span><span class="p">:</span>
-            <span class="n">data_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">gs_config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span>
+            <span class="n">data_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span>
             <span class="n">file_path</span> <span class="o">=</span> <span class="n">data_path</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
             <span class="n">granule</span> <span class="o">=</span> <span class="n">file_path</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;GRANULE&#39;</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">granule</span><span class="o">.</span><span class="n">iterdir</span><span class="p">():</span>
@@ -524,7 +527,7 @@
             <span class="k">if</span> <span class="n">band</span> <span class="ow">is</span> <span class="s1">&#39;vh&#39;</span><span class="p">:</span>
                 <span class="n">layer_number</span> <span class="o">=</span> <span class="mi">1</span>
 
-            <span class="n">proc_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">gs_config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+            <span class="n">proc_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
 
         <span class="c1"># get the shape the reside within this product</span>
         <span class="n">associated_ROIs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_list</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span>

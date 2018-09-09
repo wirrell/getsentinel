@@ -35,22 +35,6 @@
 <span></span><span class="sd">&quot;&quot;&quot; Handles getsentinel configuration</span>
 
 <span class="sd">Provides the paths for all the internal workings of getsentinel.</span>
-
-<span class="sd">Attributes</span>
-<span class="sd">----------</span>
-<span class="sd">ESA_USERNAME : str</span>
-<span class="sd">    The ESA SciHub username for the user.</span>
-<span class="sd">ESA_PASSWORD : str</span>
-<span class="sd">    The ESA SciHub password for the user.</span>
-<span class="sd">SEN2COR_ROOT_PATH : str</span>
-<span class="sd">    Contains the aboslute filepath to the sen2cor installation.</span>
-<span class="sd">GPT_ROOT_PATH : str</span>
-<span class="sd">    The absolute filepath to the Sentinel Toolbox gpt utility.</span>
-<span class="sd">DATA_PATH : str</span>
-<span class="sd">    The relative or absolute filepath to the data storage directory.</span>
-<span class="sd">QUICKLOOKS_PATH : str</span>
-<span class="sd">    The relative or absolute filepath to the quicklooks storage directory.</span>
-
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">import</span> <span class="nn">os</span>
@@ -58,28 +42,78 @@
 <span class="kn">import</span> <span class="nn">json</span>
 
 
-<span class="n">USER_INFO_DICT</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="s1">&#39;ESA_username&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;passw&#39;</span><span class="p">:</span> <span class="s1">&#39;ESA_password&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;sen2cor&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/sen2cor/L2A_Process&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;gpt&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/gpt&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/store/data&#39;</span><span class="p">,</span>
-                  <span class="s1">&#39;qlooks&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/store/quicklooks&#39;</span><span class="p">,</span>
+<span class="n">INSTALL_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+<span class="n">CONFIG_PATH</span> <span class="o">=</span> <span class="s1">&#39;gs_config.json&#39;</span>
+<span class="n">USER_INFO_DICT</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;esa_username&#39;</span><span class="p">:</span> <span class="s1">&#39;user&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;esa_password&#39;</span><span class="p">:</span> <span class="s1">&#39;passw&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;sen2cor_path&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/sen2cor/L2A_Process&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;snap_gpt&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/gpt&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;data_path&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/store/data&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;quicklooks_path&#39;</span><span class="p">:</span> <span class="s1">&#39;/path/to/store/quicklooks&#39;</span><span class="p">,</span>
                   <span class="s1">&#39;is_set&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+
+<div class="viewcode-block" id="UserConfig"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_config.UserConfig">[docs]</a><span class="k">class</span> <span class="nc">UserConfig</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Holder class for configuration info.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ESA_USERNAME : str</span>
+<span class="sd">        The ESA SciHub username for the user.</span>
+<span class="sd">    ESA_PASSWORD : str</span>
+<span class="sd">        The ESA SciHub password for the user.</span>
+<span class="sd">    SEN2COR_ROOT_PATH : str</span>
+<span class="sd">        Contains the aboslute filepath to the sen2cor installation.</span>
+<span class="sd">    GPT_ROOT_PATH : str</span>
+<span class="sd">        The absolute filepath to the Sentinel Toolbox gpt utility.</span>
+<span class="sd">    DATA_PATH : str</span>
+<span class="sd">        The relative or absolute filepath to the data storage directory.</span>
+<span class="sd">    QUICKLOOKS_PATH : str</span>
+<span class="sd">        The relative or absolute filepath to the quicklooks storage directory.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="n">_get_config</span><span class="p">()</span>
+
+<div class="viewcode-block" id="UserConfig.get_property"><a class="viewcode-back" href="../../getsentinel.html#getsentinel.gs_config.UserConfig.get_property">[docs]</a>    <span class="k">def</span> <span class="nf">get_property</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">property_name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">property_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span> <span class="c1"># we don&#39;t want KeyError</span>
+            <span class="k">return</span> <span class="kc">None</span>  <span class="c1"># just return None if not found</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="p">[</span><span class="n">property_name</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ESA_USERNAME</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span><span class="s1">&#39;esa_username&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ESA_PASSWORD</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span><span class="s1">&#39;esa_password&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">SEN2COR_ROOT_PATH</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span><span class="s1">&#39;sen2cor_path&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">GPT_ROOT_PATH</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span><span class="s1">&#39;snap_gpt&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">DATA_PATH</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span><span class="s1">&#39;data_path&#39;</span><span class="p">)</span>
+    
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">QUICKLOOKS_PATH</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_property</span><span class="p">(</span><span class="s1">&#39;quicklooks_path&#39;</span><span class="p">)</span></div>
 
 
 <span class="k">def</span> <span class="nf">_get_config</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Loads in the config details from the gs_config.txt file.&quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;Loads in the config details from the gs_config.json file.&quot;&quot;&quot;</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="n">USER_INFO_DICT</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">CONFIG_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Config file does not exist. Creating gs_config.json in&quot;</span>
               <span class="s2">&quot; the installation directory.</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please re-run your script to be prompted for to enter config &quot;</span>
-              <span class="s2">&quot;information.&quot;</span><span class="p">)</span>
-        <span class="n">set_userinfo</span><span class="p">(</span><span class="n">USER_INFO_DICT</span><span class="p">)</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Config file does not exist. Creating gs_config.json in&quot;</span>
-                           <span class="s2">&quot; the installation directory.</span><span class="se">\n</span><span class="s2">&quot;</span>
-                           <span class="s2">&quot;Please re-run your script to be prompted for to &quot;</span>
-                           <span class="s2">&quot;enter config information.&quot;</span><span class="p">)</span>
+        <span class="n">set_userinfo</span><span class="p">()</span>
+
     <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">CONFIG_PATH</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">config_file</span><span class="p">:</span>
         <span class="n">config</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
 
@@ -90,12 +124,11 @@
         <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Config file is corrupted. Deleting config file.&quot;</span><span class="p">)</span>
             <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">CONFIG_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
-            <span class="n">set_userinfo</span><span class="p">(</span><span class="n">USER_INFO_DICT</span><span class="p">)</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;A config file error occured. Please re-run &quot;</span>
-                               <span class="s2">&quot; your script and re-enter your config info.&quot;</span><span class="p">)</span>
+            <span class="n">set_userinfo</span><span class="p">()</span>
+
     <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;is_set&#39;</span><span class="p">]:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Config file not set correctly.&quot;</span><span class="p">)</span>
         <span class="n">set_userinfo</span><span class="p">()</span>
-        <span class="n">config</span> <span class="o">=</span> <span class="n">_get_config</span><span class="p">()</span>
 
     <span class="k">return</span> <span class="n">config</span>
 
@@ -120,7 +153,9 @@
 
 <span class="sd">    Note</span>
 <span class="sd">    ----</span>
-<span class="sd">    This function should be called to reset change the user config info.</span>
+<span class="sd">    This function can be called to reset/change the user config info</span>
+<span class="sd">    or the user can just delete the gs_config.json file in the working</span>
+<span class="sd">    directory.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -138,8 +173,8 @@
 
     <span class="k">if</span> <span class="n">info_dict</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">user</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;user&#39;</span><span class="p">]</span>
-            <span class="n">passw</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;passw&#39;</span><span class="p">]</span>
+            <span class="n">user</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;esa_username&#39;</span><span class="p">]</span>
+            <span class="n">passw</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;esa_password&#39;</span><span class="p">]</span>
             <span class="n">sen2cor</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;sen2cor&#39;</span><span class="p">]</span>
             <span class="n">gpt</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;gpt&#39;</span><span class="p">]</span>
             <span class="n">data</span> <span class="o">=</span> <span class="n">info_dict</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span>
@@ -148,7 +183,7 @@
             <span class="n">_save_config</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">passw</span><span class="p">,</span> <span class="n">sen2cor</span><span class="p">,</span> <span class="n">gpt</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">qlooks</span><span class="p">,</span> <span class="n">is_set</span><span class="p">)</span>
 
             <span class="k">return</span>
-        
+
         <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;The dictionary passed to&quot;</span>
                            <span class="s2">&quot; gs_config.set_userinfo is not in the correct&quot;</span>
@@ -165,7 +200,7 @@
         <span class="n">sen2cor_path</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">sen2cor</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">sen2cor_path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="n">sen2cor_path</span><span class="o">.</span><span class="n">stem</span> <span class="o">==</span> <span class="s1">&#39;L2A_Process&#39;</span><span class="p">:</span>
             <span class="k">break</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Could not find the L2A_Process file at that location.&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Could not find the L2A_Process file at that location.&quot;</span><span class="p">)</span>
         <span class="n">sen2cor</span> <span class="o">=</span> <span class="n">_ask_user</span><span class="p">(</span><span class="s2">&quot;the absolute path to your ESA sen2cor &quot;</span>
                             <span class="s2">&quot;installation L2A_Process tool&quot;</span><span class="p">)</span>
 
@@ -193,7 +228,7 @@
     <span class="n">_save_config</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">passw</span><span class="p">,</span> <span class="n">sen2cor</span><span class="p">,</span> <span class="n">gpt</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">qlooks</span><span class="p">,</span> <span class="n">is_set</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
 
 
-<span class="k">def</span> <span class="nf">_save_config</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">passw</span><span class="p">,</span> <span class="n">sen2cor</span><span class="p">,</span> <span class="n">gpt</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">qlooks</span><span class="p">,</span> <span class="n">is_set</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">_save_config</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">passw</span><span class="p">,</span> <span class="n">sen2cor</span><span class="p">,</span> <span class="n">gpt</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">qlooks</span><span class="p">,</span> <span class="n">is_set</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Saves all the details to the config file.&quot;&quot;&quot;</span>
 
     <span class="n">config</span> <span class="o">=</span> <span class="p">{}</span>
@@ -206,20 +241,7 @@
     <span class="n">config</span><span class="p">[</span><span class="s1">&#39;is_set&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">is_set</span>
 
     <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">CONFIG_PATH</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">config_file</span><span class="p">:</span>
-        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">config_file</span><span class="p">)</span>
-
-
-<span class="n">INSTALL_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
-<span class="n">CONFIG_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">INSTALL_PATH</span><span class="p">,</span> <span class="s1">&#39;gs_config.json&#39;</span><span class="p">)</span>
-
-<span class="n">_config_info</span> <span class="o">=</span> <span class="n">_get_config</span><span class="p">()</span>
-
-<span class="n">ESA_USERNAME</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;esa_username&#39;</span><span class="p">]</span>
-<span class="n">ESA_PASSWORD</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;esa_password&#39;</span><span class="p">]</span>
-<span class="n">SEN2COR_ROOT_PATH</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;sen2cor_path&#39;</span><span class="p">]</span>
-<span class="n">GPT_ROOT_PATH</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;snap_gpt&#39;</span><span class="p">]</span>
-<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;data_path&#39;</span><span class="p">]</span>
-<span class="n">QUICKLOOKS_PATH</span> <span class="o">=</span> <span class="n">_config_info</span><span class="p">[</span><span class="s1">&#39;quicklooks_path&#39;</span><span class="p">]</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">config_file</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
 </pre></div>
 
           </div>

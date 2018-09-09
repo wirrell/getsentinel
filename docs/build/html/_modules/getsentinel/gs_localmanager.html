@@ -43,12 +43,13 @@
 
 <span class="sd">Example</span>
 <span class="sd">-------</span>
+<span class="sd">::</span>
 
-<span class="sd">current_inventory = gs_localmanager.get_product_inventory()</span>
+<span class="sd">    current_inventory = gs_localmanager.get_product_inventory()</span>
 
-<span class="sd">new_downloaded_products = {uuid: product, uuid: product, ...}</span>
+<span class="sd">    new_downloaded_products = {uuid: product, uuid: product, ...}</span>
 
-<span class="sd">gs_localmanager.add_new_products(new_downloaded_products)</span>
+<span class="sd">    gs_localmanager.add_new_products(new_downloaded_products)</span>
 
 <span class="sd">Example Product Info Format</span>
 <span class="sd">---------------------------</span>
@@ -60,6 +61,8 @@
 <span class="sd">which contains the UUID of the unprocessed product from which the processed</span>
 <span class="sd">product originates.</span>
 
+<span class="sd">::</span>
+
 <span class="sd">    {&#39;acquisitiontype&#39;: &#39;NOMINAL&#39;,</span>
 <span class="sd">     &#39;beginposition&#39;: &#39;2015-08-24T06:22:07.95Z&#39;,</span>
 <span class="sd">     &#39;downloadlink&#39;: &quot;https://scihub.copernicus.eu/dhus/odata/v1/Products ... &quot;</span>
@@ -68,7 +71,7 @@
 <span class="sd">     &#39;footprint&#39;: &#39;POLYGON ((-0.059059 53.057114,-3.867077 53.461575)) &#39;</span>
 <span class="sd">     &#39;format&#39;: &#39;SAFE&#39;,</span>
 <span class="sd">     &#39;gmlfootprint&#39;: &#39;&lt;gml:Polygon footprint ...&#39;</span>
-<span class="sd">     &#39;identifier&#39;: &#39;S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 ... &#39;</span>
+<span class="sd">     &#39;identifier&#39;: &#39;S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_ ... &#39;</span>
 <span class="sd">     &#39;ingestiondate&#39;: &#39;2015-08-24T15:55:01.836Z&#39;,</span>
 <span class="sd">     &#39;instrumentname&#39;: &#39;Synthetic Aperture Radar (C-band)&#39;,</span>
 <span class="sd">     &#39;instrumentshortname&#39;: &#39;SAR-C SAR&#39;,</span>
@@ -98,7 +101,7 @@
 <span class="kn">import</span> <span class="nn">json</span>
 <span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
-<span class="kn">from</span> <span class="nn">.gs_config</span> <span class="k">import</span> <span class="n">DATA_PATH</span>
+<span class="kn">from</span> <span class="nn">.gs_config</span> <span class="k">import</span> <span class="n">UserConfig</span>
 <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">gs_downloader</span>
 
 
@@ -139,8 +142,8 @@
 <span class="sd">        having been added to the inventory by called `add_new_products`.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">data_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">UserConfig</span><span class="p">()</span>
+    <span class="n">data_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span>
     <span class="n">data_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="n">product_inventory</span> <span class="o">=</span> <span class="n">_get_inventory</span><span class="p">()</span>
@@ -209,7 +212,7 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not find a unique matching product&quot;</span>
                                <span class="s2">&quot; in the ESA database for filename: </span><span class="se">\n</span><span class="s2">&quot;</span>
                                <span class="s2">&quot; </span><span class="si">{0}</span><span class="s2"> in the </span><span class="si">{1}</span><span class="s2"> directory.&quot;</span>
-                               <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">DATA_PATH</span><span class="p">))</span>
+                               <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">))</span>
 
         <span class="n">new_products</span><span class="p">[</span><span class="n">uuid</span><span class="p">]</span> <span class="o">=</span> <span class="n">product_info</span>
 
@@ -224,7 +227,9 @@
 <span class="k">def</span> <span class="nf">_get_inventory</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;&quot;Retrieves the product inventory from .json file.&quot;&quot;&quot;</span>
 
-    <span class="n">product_inventory_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;product_inventory.json&#39;</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">UserConfig</span><span class="p">()</span>
+    <span class="n">product_inventory_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span>
+        <span class="s1">&#39;product_inventory.json&#39;</span><span class="p">)</span>
     <span class="n">product_inventory_path</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="n">product_inventory_path</span><span class="o">.</span><span class="n">open</span><span class="p">()</span> <span class="k">as</span> <span class="n">read_in</span><span class="p">:</span>
@@ -256,7 +261,9 @@
 <span class="k">def</span> <span class="nf">_save_product_inventory</span><span class="p">(</span><span class="n">product_inventory</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Writes the updated product inventory to the associated .json file.&quot;&quot;&quot;</span>
 
-    <span class="n">product_inventory_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;product_inventory.json&#39;</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">UserConfig</span><span class="p">()</span>
+    <span class="n">product_inventory_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span>
+        <span class="s1">&#39;product_inventory.json&#39;</span><span class="p">)</span>
     <span class="n">product_inventory_path</span><span class="o">.</span><span class="n">touch</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">product_inventory_path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">write_out</span><span class="p">:</span>
         <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">product_inventory</span><span class="p">,</span> <span class="n">write_out</span><span class="p">)</span>
@@ -277,7 +284,7 @@
 <span class="sd">    added_uuids : list</span>
 <span class="sd">        List of strings containing the UUIDs of the products that have been</span>
 <span class="sd">        successfully added to the inventory.</span>
-<span class="sd">        </span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">product_inventory</span> <span class="o">=</span> <span class="n">_get_inventory</span><span class="p">()</span>
