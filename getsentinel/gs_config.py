@@ -1,22 +1,6 @@
 """ Handles getsentinel configuration
 
 Provides the paths for all the internal workings of getsentinel.
-
-Attributes
-----------
-ESA_USERNAME : str
-    The ESA SciHub username for the user.
-ESA_PASSWORD : str
-    The ESA SciHub password for the user.
-SEN2COR_ROOT_PATH : str
-    Contains the aboslute filepath to the sen2cor installation.
-GPT_ROOT_PATH : str
-    The absolute filepath to the Sentinel Toolbox gpt utility.
-DATA_PATH : str
-    The relative or absolute filepath to the data storage directory.
-QUICKLOOKS_PATH : str
-    The relative or absolute filepath to the quicklooks storage directory.
-
 """
 
 import os
@@ -24,13 +8,66 @@ import pathlib
 import json
 
 
+INSTALL_PATH = os.path.dirname(os.path.realpath(__file__))
+CONFIG_PATH = 'gs_config.json'
 USER_INFO_DICT = {'esa_username': 'user',
                   'esa_password': 'passw',
-                  'sen2cor': '/path/to/sen2cor/L2A_Process',
-                  'gpt': '/path/to/gpt',
-                  'data': '/path/to/store/data',
-                  'qlooks': '/path/to/store/quicklooks',
+                  'sen2cor_path': '/path/to/sen2cor/L2A_Process',
+                  'snap_gpt': '/path/to/gpt',
+                  'data_path': '/path/to/store/data',
+                  'quicklooks_path': '/path/to/store/quicklooks',
                   'is_set': False}
+
+class UserConfig():
+    """Holder class for configuration info.
+
+    Attributes
+    ----------
+    ESA_USERNAME : str
+        The ESA SciHub username for the user.
+    ESA_PASSWORD : str
+        The ESA SciHub password for the user.
+    SEN2COR_ROOT_PATH : str
+        Contains the aboslute filepath to the sen2cor installation.
+    GPT_ROOT_PATH : str
+        The absolute filepath to the Sentinel Toolbox gpt utility.
+    DATA_PATH : str
+        The relative or absolute filepath to the data storage directory.
+    QUICKLOOKS_PATH : str
+        The relative or absolute filepath to the quicklooks storage directory.
+    """
+
+    def __init__(self):
+        self._config = _get_config()
+
+    def get_property(self, property_name):
+        if property_name not in self._config.keys(): # we don't want KeyError
+            return None  # just return None if not found
+        return self._config[property_name]
+
+    @property
+    def ESA_USERNAME(self):
+        return self.get_property('esa_username')
+
+    @property
+    def ESA_PASSWORD(self):
+        return self.get_property('esa_password')
+
+    @property
+    def SEN2COR_ROOT_PATH(self):
+        return self.get_property('sen2cor_path')
+
+    @property
+    def GPT_ROOT_PATH(self):
+        return self.get_property('snap_gpt')
+
+    @property
+    def DATA_PATH(self):
+        return self.get_property('data_path')
+    
+    @property
+    def QUICKLOOKS_PATH(self):
+        return self.get_property('quicklooks_path')
 
 
 def _get_config():
@@ -72,10 +109,7 @@ def _ask_user(info_string, default=False):
             default)
         request_string = request_string[:-1] + default_str
 
-    try:  # must catch errors here as ReadTheDocs causes EOFError for inputs
-        info = input(request_string)
-    except:
-        info = ''
+    info = input(request_string)
 
     return info
 
@@ -130,7 +164,7 @@ def set_userinfo(info_dict=False):
         sen2cor_path = pathlib.Path(sen2cor)
         if sen2cor_path.exists() and sen2cor_path.stem == 'L2A_Process':
             break
-        print("Could not find the L2A_Process file at that location.")
+        print("\nCould not find the L2A_Process file at that location.")
         sen2cor = _ask_user("the absolute path to your ESA sen2cor "
                             "installation L2A_Process tool")
 
@@ -169,28 +203,6 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set=False):
     config['data_path'] = data
     config['quicklooks_path'] = qlooks
     config['is_set'] = is_set
-    
-    # None check which detects input failure, needed for readthedocs
-    # functionality
-    for key, value in config.items():
-        if value == '':
-            config['is_set'] = False
 
     with open(CONFIG_PATH, 'w') as config_file:
         json.dump(config, config_file, indent=4)
-
-
-INSTALL_PATH = os.path.dirname(os.path.realpath(__file__))
-CONFIG_PATH = 'gs_config.json'
-
-_config_info = _get_config()
-
-ESA_USERNAME = _config_info['esa_username']
-ESA_PASSWORD = _config_info['esa_password']
-SEN2COR_ROOT_PATH = _config_info['sen2cor_path']
-GPT_ROOT_PATH = _config_info['snap_gpt']
-DATA_PATH = _config_info['data_path']
-QUICKLOOKS_PATH = _config_info['quicklooks_path']
-
-if __name__ == '__main__':
-    pass

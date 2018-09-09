@@ -32,7 +32,6 @@ Example
 # Revisit non-uniform arrays after masking. Is it fixed after applying orbit
 # files in gpt?
 
-from . import gs_config
 import datetime
 import warnings
 from pathlib import Path
@@ -42,6 +41,7 @@ import shapefile
 import rasterio
 import rasterio.mask
 from osgeo import osr, ogr
+from .gs_config import UserConfig
 
 
 class Stacker():
@@ -74,6 +74,8 @@ class Stacker():
 
     Attributes
     ----------
+    config : `gs_config.UserConfig`
+        Class container for user configuation info.
     products : dict
         Filtered copy of `product_list` passed to the object containing only
         products generated between `start_date` and `end_date`.
@@ -106,6 +108,7 @@ class Stacker():
                  start_date,
                  end_date):
 
+        self.config = UserConfig()
         self.geo_files = geo_files
         self.start_date = start_date
         self.end_date = end_date
@@ -463,7 +466,7 @@ class Stacker():
                 'processing': product['producttype']}
 
         if platform == 'Sentinel-2':
-            data_path = Path(gs_config.DATA_PATH)
+            data_path = Path(self.config.DATA_PATH)
             file_path = data_path.joinpath(filename)
             granule = file_path.joinpath('GRANULE')
             for child in granule.iterdir():
@@ -490,7 +493,7 @@ class Stacker():
             if band is 'vh':
                 layer_number = 1
 
-            proc_file = Path(gs_config.DATA_PATH).joinpath(filename)
+            proc_file = Path(self.config.DATA_PATH).joinpath(filename)
 
         # get the shape the reside within this product
         associated_ROIs = self.job_list[uuid]

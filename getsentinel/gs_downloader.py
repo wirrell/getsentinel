@@ -52,7 +52,7 @@ from shapely.geometry import MultiPoint, Polygon
 from shapely.wkt import loads
 from osgeo import ogr, osr
 from . import gs_localmanager
-from .gs_config import DATA_PATH, QUICKLOOKS_PATH, ESA_USERNAME, ESA_PASSWORD
+from .gs_config import UserConfig
 
 
 class Query:
@@ -379,6 +379,8 @@ class CopernicusHubConnection:
 
     Attributes
     ----------
+    config : `gs_config.UserConfig`
+        Class container for user configuation info.
     username : str
         The user's ESA account username.
     password : str
@@ -388,8 +390,9 @@ class CopernicusHubConnection:
 
     def __init__(self):
 
-        self.username = ESA_USERNAME
-        self.password = ESA_PASSWORD
+        self.config = UserConfig()
+        self.username = self.config.ESA_USERNAME
+        self.password = self.config.ESA_PASSWORD
 
     def raw_query(self, query):
         """Queries the ESA SciHub with a pre-formatted query.
@@ -515,7 +518,7 @@ class CopernicusHubConnection:
 
         return num_results, product_list
 
-    def download_quicklooks(self, productlist, downloadpath=QUICKLOOKS_PATH):
+    def download_quicklooks(self, productlist, downloadpath=None):
         """Downloads the quicklooks of  products to a specified directory.
 
         Note
@@ -538,12 +541,14 @@ class CopernicusHubConnection:
         None
 
         """
+        if downloadpath is None:
+            downloadpath = self.config.QUICKLOOKS_PATH
 
         quicklooks_path = pathlib.Path(downloadpath)
         quicklooks_path.mkdir(exist_ok=True)
         existing_quicklooks = [x for x in list(quicklooks_path.glob('*'))]
 
-        print("Downloading quicklooks to {0}".format(QUICKLOOKS_PATH))
+        print("Downloading quicklooks to {0}".format(downloadpath))
 
         for uuid, product in productlist.items():
             if product['identifier'] in existing_quicklooks:
@@ -581,7 +586,7 @@ class CopernicusHubConnection:
         # Copy the dict so that it doesnt get cleared and can still be used in
         # a parent script
         productlist = products.copy()
-        downloadpath = DATA_PATH  # imported from gs_config
+        downloadpath = self.config.DATA_PATH  # imported from gs_config
         product_inventory = gs_localmanager.get_product_inventory()
         already_downloaded = list(product_inventory.keys())
 

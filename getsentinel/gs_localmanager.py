@@ -9,12 +9,13 @@ See below for example product info format.
 
 Example
 -------
+::
 
-current_inventory = gs_localmanager.get_product_inventory()
+    current_inventory = gs_localmanager.get_product_inventory()
 
-new_downloaded_products = {uuid: product, uuid: product, ...}
+    new_downloaded_products = {uuid: product, uuid: product, ...}
 
-gs_localmanager.add_new_products(new_downloaded_products)
+    gs_localmanager.add_new_products(new_downloaded_products)
 
 Example Product Info Format
 ---------------------------
@@ -26,6 +27,8 @@ been processed. For processed products a further field, `origin`, is added
 which contains the UUID of the unprocessed product from which the processed
 product originates.
 
+::
+
     {'acquisitiontype': 'NOMINAL',
      'beginposition': '2015-08-24T06:22:07.95Z',
      'downloadlink': "https://scihub.copernicus.eu/dhus/odata/v1/Products ... "
@@ -34,7 +37,7 @@ product originates.
      'footprint': 'POLYGON ((-0.059059 53.057114,-3.867077 53.461575)) '
      'format': 'SAFE',
      'gmlfootprint': '<gml:Polygon footprint ...'
-     'identifier': 'S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_007401 ... '
+     'identifier': 'S1A_IW_GRDH_1SDV_20150824T062207_20150824T062232_ ... '
      'ingestiondate': '2015-08-24T15:55:01.836Z',
      'instrumentname': 'Synthetic Aperture Radar (C-band)',
      'instrumentshortname': 'SAR-C SAR',
@@ -64,7 +67,7 @@ product originates.
 import json
 import warnings
 from pathlib import Path
-from .gs_config import DATA_PATH
+from .gs_config import UserConfig
 from . import gs_downloader
 
 
@@ -105,8 +108,8 @@ def check_integrity():
         having been added to the inventory by called `add_new_products`.
 
     """
-
-    data_path = Path(DATA_PATH)
+    config = UserConfig()
+    data_path = Path(config.DATA_PATH)
     data_path.mkdir(exist_ok=True)
 
     product_inventory = _get_inventory()
@@ -175,7 +178,7 @@ def check_integrity():
             raise RuntimeError("Could not find a unique matching product"
                                " in the ESA database for filename: \n"
                                " {0} in the {1} directory."
-                               "".format(filename, DATA_PATH))
+                               "".format(filename, config.DATA_PATH))
 
         new_products[uuid] = product_info
 
@@ -190,7 +193,9 @@ def check_integrity():
 def _get_inventory():
     """"Retrieves the product inventory from .json file."""
 
-    product_inventory_path = Path(DATA_PATH).joinpath('product_inventory.json')
+    config = UserConfig()
+    product_inventory_path = Path(config.DATA_PATH).joinpath(
+        'product_inventory.json')
     product_inventory_path.touch(exist_ok=True)
     try:
         with product_inventory_path.open() as read_in:
@@ -222,7 +227,9 @@ def get_product_inventory():
 def _save_product_inventory(product_inventory):
     """Writes the updated product inventory to the associated .json file."""
 
-    product_inventory_path = Path(DATA_PATH).joinpath('product_inventory.json')
+    config = UserConfig()
+    product_inventory_path = Path(config.DATA_PATH).joinpath(
+        'product_inventory.json')
     product_inventory_path.touch(exist_ok=True)
     with product_inventory_path.open(mode='w') as write_out:
         json.dump(product_inventory, write_out)
@@ -243,7 +250,7 @@ def add_new_products(new_products: dict):
     added_uuids : list
         List of strings containing the UUIDs of the products that have been
         successfully added to the inventory.
-        
+
     """
 
     product_inventory = _get_inventory()
