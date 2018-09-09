@@ -75,7 +75,7 @@ def _ask_user(info_string, default=False):
     try:  # must catch errors here as ReadTheDocs causes EOFError for inputs
         info = input(request_string)
     except:
-        info = None
+        info = ''
 
     return info
 
@@ -173,7 +173,7 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set=False):
     # None check which detects input failure, needed for readthedocs
     # functionality
     for key, value in config.items():
-        if value is None:
+        if value == '':
             config['is_set'] = False
 
     with open(CONFIG_PATH, 'w') as config_file:
