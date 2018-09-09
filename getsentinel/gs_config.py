@@ -34,18 +34,14 @@ USER_INFO_DICT = {'esa_username': 'user',
 
 
 def _get_config():
-    """Loads in the config details from the gs_config.txt file."""
+    """Loads in the config details from the gs_config.json file."""
 
     config = USER_INFO_DICT
 
     if not pathlib.Path(CONFIG_PATH).exists():
-        set_userinfo(USER_INFO_DICT)
-        raise RuntimeError("Config file does not exist. Creating"
-                           " gs_config.json in"
-                           " the current directory.\n"
-                           "Set the config file running"
-                           " gs_config.set_userinfo()"
-                           " or editing the config file.")
+        print("Config file does not exist. Creating gs_config.json in"
+              " the installation directory.\n")
+        set_userinfo()
 
     with open(CONFIG_PATH, 'r') as config_file:
         config = json.load(config_file)
@@ -57,15 +53,13 @@ def _get_config():
         if key not in config:
             print("Config file is corrupted. Deleting config file.")
             pathlib.Path(CONFIG_PATH).unlink()
-            set_userinfo(USER_INFO_DICT)
-            print("A config file error occured. Please re-run "
-                  " your script and re-enter your config info.")
+            set_userinfo()
 
     if not config['is_set']:
         print("Config file not set, please run gs_config.set_userinfo()\n")
         print(" or edit the gs_config.json file generated in the working"
               " directory.")
-        return config
+        set_userinfo()
 
     return config
 
