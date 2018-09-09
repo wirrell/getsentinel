@@ -8,6 +8,7 @@ Handles both Sentinel-1 and Sentinel-2 rasters over multiple time frames.
 
 Example
 -------
+::
 
     from getsentinel import gs_localmanager, gs_stacker
 

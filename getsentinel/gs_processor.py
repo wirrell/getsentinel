@@ -11,13 +11,14 @@ uuids and product info returned.
 
 Example
 -------
+::
 
-from getsentinel import gs_process
+    from getsentinel import gs_process
 
-level1c_s2products = {uuid: info, uuid: info}
+    level1c_s2products = {uuid: info, uuid: info}
 
-for uuid in level1c_s2products:
-    level2a_s2products = gs_process.batch_process(uuid)
+    for uuid in level1c_s2products:
+        level2a_s2products = gs_process.batch_process(uuid)
 
 """
 # TODO: Implement processed project inventory checking to prevent re-processing
