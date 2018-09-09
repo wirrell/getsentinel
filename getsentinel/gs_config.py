@@ -24,8 +24,8 @@ import pathlib
 import json
 
 
-USER_INFO_DICT = {'user': 'esa_username',
-                  'passw': 'esa_password',
+USER_INFO_DICT = {'esa_username': 'user',
+                  'esa_password': 'passw',
                   'sen2cor': '/path/to/sen2cor/L2A_Process',
                   'gpt': '/path/to/gpt',
                   'data': '/path/to/store/data',
@@ -40,11 +40,12 @@ def _get_config():
 
     if not pathlib.Path(CONFIG_PATH).exists():
         set_userinfo(USER_INFO_DICT)
-        print("Config file does not exist. Creating gs_config.json in"
-              " the installation directory.\n"
-              "Set the config file runnig gs_config.set_userinfo()"
-              " or editing the config file.")
-        return config
+        raise RuntimeError("Config file does not exist. Creating"
+                           " gs_config.json in"
+                           " the current directory.\n"
+                           "Set the config file running"
+                           " gs_config.set_userinfo()"
+                           " or editing the config file.")
 
     with open(CONFIG_PATH, 'r') as config_file:
         config = json.load(config_file)
@@ -175,7 +176,7 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set=False):
     config['is_set'] = is_set
 
     with open(CONFIG_PATH, 'w') as config_file:
-        json.dump(config, config_file)
+        json.dump(config, config_file, indent=4)
 
 
 INSTALL_PATH = os.path.dirname(os.path.realpath(__file__))
