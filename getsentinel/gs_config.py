@@ -119,7 +119,9 @@ def set_userinfo(info_dict=False):
 
     Note
     ----
-    This function should be called to reset change the user config info.
+    This function can be called to reset/change the user config info
+    or the user can just delete the gs_config.json file in the working
+    directory.
 
     Parameters
     ----------
