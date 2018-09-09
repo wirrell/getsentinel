@@ -45,6 +45,7 @@ def _get_config():
               "Set the config file runnig gs_config.set_userinfo()"
               " or editing the config file.")
         return config
+
     with open(CONFIG_PATH, 'r') as config_file:
         config = json.load(config_file)
 
@@ -188,3 +189,6 @@ SEN2COR_ROOT_PATH = _config_info['sen2cor_path']
 GPT_ROOT_PATH = _config_info['snap_gpt']
 DATA_PATH = _config_info['data_path']
 QUICKLOOKS_PATH = _config_info['quicklooks_path']
+
+if __name__ == '__main__':
+    pass
