@@ -56,9 +56,7 @@ def _get_config():
             set_userinfo()
 
     if not config['is_set']:
-        print("Config file not set, please run gs_config.set_userinfo()\n")
-        print(" or edit the gs_config.json file generated in the working"
-              " directory.")
+        print("Config file not set correctly.")
         set_userinfo()
 
     return config
@@ -74,7 +72,10 @@ def _ask_user(info_string, default=False):
             default)
         request_string = request_string[:-1] + default_str
 
-    info = input(request_string)
+    try:  # must catch errors here as ReadTheDocs causes EOFError for inputs
+        info = input(request_string)
+    except:
+        info = None
 
     return info
 
@@ -102,8 +103,8 @@ def set_userinfo(info_dict=False):
 
     if info_dict:
         try:
-            user = info_dict['user']
-            passw = info_dict['passw']
+            user = info_dict['esa_username']
+            passw = info_dict['esa_password']
             sen2cor = info_dict['sen2cor']
             gpt = info_dict['gpt']
             data = info_dict['data']
@@ -168,6 +169,12 @@ def _save_config(user, passw, sen2cor, gpt, data, qlooks, is_set=False):
     config['data_path'] = data
     config['quicklooks_path'] = qlooks
     config['is_set'] = is_set
+    
+    # None check which detects input failure, needed for readthedocs
+    # functionality
+    for key, value in config.items():
+        if value is None:
+            config['is_set'] = False
 
     with open(CONFIG_PATH, 'w') as config_file:
         json.dump(config, config_file, indent=4)
