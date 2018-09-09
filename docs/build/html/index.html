@@ -60,14 +60,18 @@ and extraction of Sentinel data.</p>
 <span class="n">start</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">end</span> <span class="o">=</span> <span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
 
+<span class="c1"># Format a query to send to the ESA SciHub</span>
 <span class="n">query</span> <span class="o">=</span> <span class="n">gs_downloader</span><span class="o">.</span><span class="n">Query</span><span class="p">(</span><span class="s1">&#39;S2&#39;</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">roi</span><span class="p">)</span>
+<span class="c1"># Looking for Level-1C processed with 0% cloud cover</span>
 <span class="n">query</span><span class="o">.</span><span class="n">product_details</span><span class="p">(</span><span class="s1">&#39;L1C&#39;</span><span class="p">,</span> <span class="n">cloudcoverlimit</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
 <span class="n">hub</span> <span class="o">=</span> <span class="n">gs_downloader</span><span class="o">.</span><span class="n">CopernicusHubConnection</span><span class="p">()</span>
 <span class="n">num_results</span><span class="p">,</span> <span class="n">products</span> <span class="o">=</span> <span class="n">hub</span><span class="o">.</span><span class="n">submit_query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
 
+<span class="c1"># Process the products up the Level-2A</span>
 <span class="n">processed</span> <span class="o">=</span> <span class="n">gs_processor</span><span class="o">.</span><span class="n">batch_process</span><span class="p">(</span><span class="n">products</span><span class="p">)</span>
 
+<span class="c1"># Extract the region of interest data for bands 2, 3, 4</span>
 <span class="n">stacker</span> <span class="o">=</span> <span class="n">gs_stacker</span><span class="o">.</span><span class="n">Stacker</span><span class="p">(</span><span class="n">processed</span><span class="p">,</span> <span class="n">roi</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
 <span class="n">stacker</span><span class="o">.</span><span class="n">set_bands</span><span class="p">(</span><span class="n">s2_band_list</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;B02&#39;</span><span class="p">,</span> <span class="s1">&#39;B03&#39;</span><span class="p">,</span> <span class="s1">&#39;B04&#39;</span><span class="p">])</span>
 
