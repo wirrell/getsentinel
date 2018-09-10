@@ -1,12 +1,14 @@
 getsentinel
 ===========
 
-## A download, process, and masking pipeline for ESA Sentinel-X data.
+## A download, process, and masking tool for ESA Sentinel-X data.
 
 ### Author: G. Worrall
 
+#### Documentation: https://getsentinel.readthedocs.io/
+
 #### Requirements: 
-                  Python 3.6
+                  Python 3.4+
                   requests
                   clint
                   pyshp
@@ -53,7 +55,3 @@ stacker.check_weather(cloud=20, snow=20)
 data = stacker.generate_stacks()
 
 ```
-
-
-
-
