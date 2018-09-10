@@ -693,12 +693,14 @@ inventory and the new UUID under which it is stored is returned.</p>
 uuids and product info returned.</p>
 </div>
 <p class="rubric">Example</p>
-<p>from getsentinel import gs_process</p>
-<p>level1c_s2products = {uuid: info, uuid: info}</p>
-<dl class="docutils">
-<dt>for uuid in level1c_s2products:</dt>
-<dd>level2a_s2products = gs_process.batch_process(uuid)</dd>
-</dl>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">getsentinel</span> <span class="k">import</span> <span class="n">gs_process</span>
+
+<span class="n">level1c_s2products</span> <span class="o">=</span> <span class="p">{</span><span class="n">uuid</span><span class="p">:</span> <span class="n">info</span><span class="p">,</span> <span class="n">uuid</span><span class="p">:</span> <span class="n">info</span><span class="p">}</span>
+
+<span class="k">for</span> <span class="n">uuid</span> <span class="ow">in</span> <span class="n">level1c_s2products</span><span class="p">:</span>
+    <span class="n">level2a_s2products</span> <span class="o">=</span> <span class="n">gs_process</span><span class="o">.</span><span class="n">batch_process</span><span class="p">(</span><span class="n">uuid</span><span class="p">)</span>
+</pre></div>
+</div>
 <dl class="function">
 <dt id="getsentinel.gs_processor.batch_process">
 <code class="descclassname">getsentinel.gs_processor.</code><code class="descname">batch_process</code><span class="sig-paren">(</span><em>product_inventory</em>, <em>gpt_graph=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/getsentinel/gs_processor.html#batch_process"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_processor.batch_process" title="Permalink to this definition">¶</a></dt>
@@ -762,15 +764,22 @@ Stacker object acts as a dictionary from which numpy arrays containing all the
 multi-temporal data layers.</p>
 <p>Handles both Sentinel-1 and Sentinel-2 rasters over multiple time frames.</p>
 <p class="rubric">Example</p>
-<p>from getsentinel import gs_localmanager, gs_stacker</p>
-<p>products = gs_localmanager.get_product_inventory()</p>
-<p>roi = ‘path/to/test_field.geojson’
-start = datetime.date(2018, 5, 6)
-end = datetime.date(2018, 5, 7)</p>
-<p>stacker = gs_stacker.Stacker(products, roi, start, end)</p>
-<p># get the True Colour Image at resolution 10m
-stacker.set_bands(s2_band_list=[‘TCI’], s2_resolution=10)</p>
-<p>data = stacker.generate_stacks()</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">getsentinel</span> <span class="k">import</span> <span class="n">gs_localmanager</span><span class="p">,</span> <span class="n">gs_stacker</span>
+
+<span class="n">products</span> <span class="o">=</span> <span class="n">gs_localmanager</span><span class="o">.</span><span class="n">get_product_inventory</span><span class="p">()</span>
+
+<span class="n">roi</span> <span class="o">=</span> <span class="s1">&#39;path/to/test_field.geojson&#39;</span>
+<span class="n">start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+<span class="n">end</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+
+<span class="n">stacker</span> <span class="o">=</span> <span class="n">gs_stacker</span><span class="o">.</span><span class="n">Stacker</span><span class="p">(</span><span class="n">products</span><span class="p">,</span> <span class="n">roi</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+
+<span class="c1"># get the True Colour Image at resolution 10m</span>
+<span class="n">stacker</span><span class="o">.</span><span class="n">set_bands</span><span class="p">(</span><span class="n">s2_band_list</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;TCI&#39;</span><span class="p">],</span> <span class="n">s2_resolution</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">stacker</span><span class="o">.</span><span class="n">generate_stacks</span><span class="p">()</span>
+</pre></div>
+</div>
 <dl class="class">
 <dt id="getsentinel.gs_stacker.Stack">
 <em class="property">class </em><code class="descclassname">getsentinel.gs_stacker.</code><code class="descname">Stack</code><a class="reference internal" href="_modules/getsentinel/gs_stacker.html#Stack"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#getsentinel.gs_stacker.Stack" title="Permalink to this definition">¶</a></dt>

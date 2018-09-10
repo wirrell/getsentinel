@@ -4,6 +4,8 @@ getsentinel documentation
 `getsentinel` is a Python package for automating the downloading, processing
 and extraction of Sentinel data.
 
+Source: https://bitbucket.org/wirrell/getsentinel/
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
