@@ -1,0 +1,9 @@
+{
+    "esa_username": "wirrell",
+    "esa_password": "R0CKb0ttom$$",
+    "sen2cor_path": "/home/george/Sen2Cor-02.05.05-Linux64/bin/L2A_Process",
+    "snap_gpt": "/home/george/snap/bin/gpt",
+    "data_path": "data/",
+    "quicklooks_path": "quicklooks/",
+    "is_set": true
+}

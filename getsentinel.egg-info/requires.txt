@@ -1,0 +1,7 @@
+requests
+clint
+pyshp
+geojson
+shapely
+numpy
+rasterio

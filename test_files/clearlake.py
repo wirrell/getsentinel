@@ -1,3 +1,4 @@
+from datetime import date
 from getsentinel import gs_downloader, gs_localmanager
 from getsentinel import gs_stacker, gs_processor
 

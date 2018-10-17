@@ -12,9 +12,10 @@ Source: https://bitbucket.org/wirrell/getsentinel/
 
    Installation<installation.rst>
    Modules<modules.rst>
+   Quickstart Examples<quickstart.rst>
 
 
-Quick Start Example
+Minimal Example
 -------------------
 ::
 

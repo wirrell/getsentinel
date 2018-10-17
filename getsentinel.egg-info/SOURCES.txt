@@ -1,0 +1,13 @@
+README.md
+setup.py
+getsentinel/__init__.py
+getsentinel/gs_config.py
+getsentinel/gs_downloader.py
+getsentinel/gs_localmanager.py
+getsentinel/gs_processor.py
+getsentinel/gs_stacker.py
+getsentinel.egg-info/PKG-INFO
+getsentinel.egg-info/SOURCES.txt
+getsentinel.egg-info/dependency_links.txt
+getsentinel.egg-info/requires.txt
+getsentinel.egg-info/top_level.txt
